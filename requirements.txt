@@ -1,0 +1,9 @@
+feature_engine==1.8.1
+joblib==1.4.2
+numpy==2.1.0
+optuna==3.6.1
+pandas==2.2.2
+pytorch_lightning==1.9.5
+scikit_learn==1.5.1
+statsmodels==0.14.2
+torch==2.4.0

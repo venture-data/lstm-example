@@ -1,0 +1,9 @@
+{
+    "hidden_size": 148,
+    "hidden_size1": 142,
+    "num_layers": 4,
+    "learning_rate": 0.00044890136492405314,
+    "input_size": 63,
+    "output_size": 1,
+    "t_plus1_dim": 57
+}
