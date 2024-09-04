@@ -23,9 +23,14 @@ variables = sys.argv[4]
 variables = list(map(str.strip, variables.lstrip("[").rstrip("]").split(",")))
 
 def add_moving_averages(df, column_list, windows):
+    # Create a dictionary to store new columns for moving averages
+    ma_dict = {}
     for column in column_list:
         for window in windows:
-            df[f"{column}_ma_{window}"] = df[column].rolling(window=window).mean()
+            ma_dict[f"{column}_ma_{window}"] = df[column].rolling(window=window).mean()
+    
+    # Concatenate the moving averages DataFrame with the original DataFrame
+    df = pd.concat([df, pd.DataFrame(ma_dict)], axis=1)
     return df
 
 def recursive_forecast(
@@ -54,7 +59,7 @@ def recursive_forecast(
     df.loc[start_idx:end_idx, "PriceHU"] = 0  
     
     # Add moving averages to DataFrame
-    df = add_moving_averages(df, variables, windows)
+    df = add_moving_averages(df, variables + ["PriceHU"], windows)
 
     cols = (
         variables
@@ -83,6 +88,7 @@ def recursive_forecast(
                     ),
                 ]
             )
+            continue  # Skip to the next iteration after appending the forecast
 
         # Prepare the input sequence
         feature_cols = df.drop(columns=["PriceHU", "Date"]).columns
