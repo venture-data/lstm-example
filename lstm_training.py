@@ -11,6 +11,7 @@ from pytorch_lightning import Trainer
 from sklearn.preprocessing import RobustScaler
 from SimpleLSTMModel import SimpleLSTMModel
 import random
+import os
 
 pl.seed_everything(106, workers=True)
 random.seed(106)
@@ -171,9 +172,13 @@ train_dataset = TensorDataset(X_train_tensor, T_plus1_train_tensor, y_train_tens
 val_dataset = TensorDataset(X_val_tensor, T_plus1_val_tensor, y_val_tensor)
 test_dataset = TensorDataset(X_test_tensor, T_plus1_test_tensor, y_test_tensor)
 
-train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
-val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False)
-test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
+# Determine the number of available CPU cores
+num_workers = os.cpu_count()
+
+# Create DataLoaders with dynamically determined num_workers
+train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=num_workers)
+val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False, num_workers=num_workers)
+test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=num_workers)
 
 # Hyperparameter tuning using Optuna
 print("Starting hyperparameter tuning with Optuna...")
