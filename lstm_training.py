@@ -13,6 +13,8 @@ from SimpleLSTMModel import SimpleLSTMModel
 import random
 import os
 
+torch.set_float32_matmul_precision('medium')
+
 pl.seed_everything(106, workers=True)
 random.seed(106)
 np.random.seed(106)
