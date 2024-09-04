@@ -115,20 +115,31 @@ def recursive_forecast(
             X_t_plus_1_features[feature_scaler.get_feature_names_out()]
         )[:, :t_plus_1_feature_len]
 
-        # Debug: Print shapes to identify the mismatch
-        print(f"Shape of X_last_scaled_combined: {X_last_scaled_combined.shape}")
-        print(f"Shape of X_t_plus_1_features_scaled: {X_t_plus_1_features_scaled.shape}")
-        print(f"Expected input size for model: {model.hparams.input_size + model.hparams.t_plus1_dim}")
-
+        # Ensure the concatenation aligns with model expectations
+        lstm_output_size = model.hparams.hidden_size
+        combined_input_size = lstm_output_size + model.hparams.t_plus1_dim
+        
         # Convert the last sequence to a tensor and move to the correct device
         X_tensor = torch.tensor(X_last_scaled_combined, dtype=torch.float32).to(device)
         t_plus_1_features_tensor = torch.tensor(
             X_t_plus_1_features_scaled, dtype=torch.float32
         ).to(device)
 
+        # Pass through LSTM and concatenate with T+1 features
+        lstm_out, _ = model.lstm(X_tensor)  # Get all outputs from LSTM
+        lstm_last_output = lstm_out[:, -1, :]  # Take the output at the last time step
+        
+        # Concatenate LSTM output with T+1 features
+        combined_input = torch.cat((lstm_last_output, t_plus_1_features_tensor), dim=1)
+
+        # Ensure the combined input has the right size
+        assert combined_input.shape[1] == combined_input_size, (
+            f"Combined input size mismatch: expected {combined_input_size}, got {combined_input.shape[1]}"
+        )
+
         # Make prediction on the correct device
         with torch.no_grad():
-            y_pred_scaled = model(X_tensor, t_plus_1_features_tensor).cpu().numpy()
+            y_pred_scaled = model.fc(combined_input).cpu().numpy()
 
         # Inverse transform the prediction
         y_pred = target_scaler.inverse_transform(y_pred_scaled)
