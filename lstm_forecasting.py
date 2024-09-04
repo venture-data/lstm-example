@@ -1,65 +1,32 @@
 import json
 import sys
-
 import joblib
 import numpy as np
-import optuna
 import pandas as pd
 import pytorch_lightning as pl
 import torch
-import torch.nn as nn
-import torch.optim as optim
-from feature_engine.timeseries.forecasting import LagFeatures
-from pytorch_lightning import Trainer
-from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import (
-    FunctionTransformer,
-    MinMaxScaler,
-    RobustScaler,
-    StandardScaler,
-)
-from statsmodels.tsa.seasonal import seasonal_decompose
-from torch.optim.lr_scheduler import ReduceLROnPlateau, StepLR
-from torch.utils.data import DataLoader, TensorDataset
-
 from SimpleLSTMModel import SimpleLSTMModel
 
 pl.seed_everything(42, workers=True)
-import random
 
+import random
 random.seed(42)
-import numpy as np
 
 np.random.seed(42)
-
-import pandas as pd
-
 pd.options.mode.chained_assignment = None
-import warnings
 
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-
+# Load command-line arguments
 data_path = sys.argv[1]
-# data_path = "drive/MyDrive/DATAFORMODELtrain250724.xlsx"
-
 forecast_start_date = sys.argv[2]
-# forecast_start_date = "2024-06-01 23:00"
-
 forecast_end_date = sys.argv[3]
-# forecast_end_date = "2024-07-01 23:00"
-
 variables = sys.argv[4]
-# variables = "[ROSOLGEN,GAS,CO2,T2MALL,WS10MRO,RORRO,RORSE,AT_HU,DEWINDGEN]"
 variables = list(map(str.strip, variables.lstrip("[").rstrip("]").split(",")))
-
 
 def add_moving_averages(df, column_list, windows):
     for column in column_list:
         for window in windows:
             df[f"{column}_ma_{window}"] = df[column].rolling(window=window).mean()
     return df
-
 
 def recursive_forecast(
     df, start_idx, end_idx, seq_len, model, feature_scaler, target_scaler, ma_windows
@@ -69,9 +36,7 @@ def recursive_forecast(
     df["month"] = df["Date"].dt.month
     df["week"] = df["Date"].dt.weekday
     df["is_weekend"] = df["Date"].dt.weekday.isin([5, 6]).apply(int)
-
     df["hour"] = df["Date"].dt.hour
-
     df["peak_event"] = (df["Date"].dt.year.isin([2023, 2022])) | (
         df["Date"] >= pd.to_datetime("2024/06/01")
     ).apply(int)
@@ -133,15 +98,15 @@ def recursive_forecast(
             X_t_plus_1_features[feature_scaler.get_feature_names_out()]
         )[:, :t_plus_1_feature_len]
 
-        # Convert the last sequence to a tensor
-        X_tensor = torch.tensor(X_last_scaled_combined, dtype=torch.float32)
+        # Convert the last sequence to a tensor and move to the correct device
+        X_tensor = torch.tensor(X_last_scaled_combined, dtype=torch.float32).to(device)
         t_plus_1_features_tensor = torch.tensor(
             X_t_plus_1_features_scaled, dtype=torch.float32
-        )
+        ).to(device)
 
-        # Make prediction
+        # Make prediction on the correct device
         with torch.no_grad():
-            y_pred_scaled = model(X_tensor, t_plus_1_features_tensor).numpy()
+            y_pred_scaled = model(X_tensor, t_plus_1_features_tensor).cpu().numpy()
 
         # Inverse transform the prediction
         y_pred = target_scaler.inverse_transform(y_pred_scaled)
@@ -160,32 +125,38 @@ def recursive_forecast(
 
     return forecast_df
 
-
+# Set sequence length and moving average windows
 seq_len = 24
-windows = [12, 24, 36, 48, 7 * 24]  # Moving Avg Windows
+windows = [12, 24, 36, 48, 7 * 24]
+
+# Load scalers
 feature_scaler = joblib.load("feature_scaler.joblib")
 target_scaler = joblib.load("target_scaler.joblib")
 
+# Load the model hyperparameters and state
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
 model = SimpleLSTMModel(
     **json.load(open("hyperparameters_finetuning.json")),
     target_scaler=target_scaler,
 )
-model.load_state_dict(torch.load("lstm_network_state_es.pth", weights_only=False))
+model.load_state_dict(torch.load("lstm_network_state_es.pth"))
 model = model.to(device)
 print("Loaded the model on", device)
 
-
+# Load the dataset
 df = pd.read_excel(data_path)
 df["Date"] = pd.to_datetime(df["Date"])
 df["Date"] = df["Date"].apply(lambda x: x.round(freq="h"))
 
-
+# Get forecasting indices
 forecast_idx_list = df[
     (df["Date"] >= pd.to_datetime(forecast_start_date))
     & (df["Date"] <= pd.to_datetime(forecast_end_date))
 ].index
 start_idx = forecast_idx_list[0]
 num_steps = len(forecast_idx_list)
+
+# Perform recursive forecasting
 output = recursive_forecast(
     df,
     start_idx,
@@ -196,5 +167,7 @@ output = recursive_forecast(
     target_scaler,
     windows,
 )
+
+# Save the forecast to a CSV file
 output.to_csv("forecast.csv", index=False)
 print("Forecasting Completed & result is stored")
