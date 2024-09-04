@@ -7,12 +7,12 @@ import pytorch_lightning as pl
 import torch
 from SimpleLSTMModel import SimpleLSTMModel
 
-pl.seed_everything(106, workers=True)
+pl.seed_everything(42, workers=True)
 
 import random
-random.seed(106)
+random.seed(42)
 
-np.random.seed(106)
+np.random.seed(42)
 pd.options.mode.chained_assignment = None
 
 # Load command-line arguments
@@ -114,6 +114,11 @@ def recursive_forecast(
         X_t_plus_1_features_scaled = feature_scaler.transform(
             X_t_plus_1_features[feature_scaler.get_feature_names_out()]
         )[:, :t_plus_1_feature_len]
+
+        # Debug: Print shapes to identify the mismatch
+        print(f"Shape of X_last_scaled_combined: {X_last_scaled_combined.shape}")
+        print(f"Shape of X_t_plus_1_features_scaled: {X_t_plus_1_features_scaled.shape}")
+        print(f"Expected input size for model: {model.hparams.input_size + model.hparams.t_plus1_dim}")
 
         # Convert the last sequence to a tensor and move to the correct device
         X_tensor = torch.tensor(X_last_scaled_combined, dtype=torch.float32).to(device)
