@@ -10,9 +10,9 @@ from SimpleLSTMModel import SimpleLSTMModel
 pl.seed_everything(42, workers=True)
 
 import random
-random.seed(42)
+random.seed(106)
 
-np.random.seed(42)
+np.random.seed(106)
 pd.options.mode.chained_assignment = None
 
 # Load command-line arguments
