@@ -7,12 +7,12 @@ import pytorch_lightning as pl
 import torch
 from SimpleLSTMModel import SimpleLSTMModel
 
-pl.seed_everything(106, workers=True)
+pl.seed_everything(42, workers=True)
 
 import random
-random.seed(106)
+random.seed(42)
 
-np.random.seed(106)
+np.random.seed(42)
 pd.options.mode.chained_assignment = None
 
 # Load command-line arguments
@@ -23,16 +23,20 @@ variables = sys.argv[4]
 variables = list(map(str.strip, variables.lstrip("[").rstrip("]").split(",")))
 
 def add_moving_averages(df, column_list, windows):
+    # Create a dictionary to store new columns for moving averages
     ma_dict = {}
     for column in column_list:
         for window in windows:
             ma_dict[f"{column}_ma_{window}"] = df[column].rolling(window=window).mean()
+    
+    # Concatenate the moving averages DataFrame with the original DataFrame
     df = pd.concat([df, pd.DataFrame(ma_dict)], axis=1)
     return df
 
 def recursive_forecast(
-    df, start_idx, end_idx, seq_len, model, feature_scaler, target_scaler, ma_windows
+    df, start_idx, end_idx, seq_len, model, feature_scaler, target_scaler, windows
 ):
+
     forecast_df = pd.DataFrame()
     df["month"] = df["Date"].dt.month
     df["week"] = df["Date"].dt.weekday
@@ -51,7 +55,10 @@ def recursive_forecast(
     for i in range(24):
         df[f"hour_{i}"] = (df["Date"].dt.hour == i).values.astype(int)
 
-    df.loc[start_idx:end_idx, "PriceHU"] = 0  # Adjusted for PriceHU
+    # Ensure PriceHU is set to 0 for the forecast period
+    df.loc[start_idx:end_idx, "PriceHU"] = 0  
+    
+    # Add moving averages to DataFrame
     df = add_moving_averages(df, variables + ["PriceHU"], windows)
 
     cols = (
@@ -67,6 +74,7 @@ def recursive_forecast(
         + [f"week_{i}" for i in range(7)]
         + [f"hour_{i}" for i in range(24)]
     )
+    ignore_last_cols = 5 + 12 + 7 + 24
     t_plus_1_feature_len = len(cols)
 
     for current_idx in range(start_idx, end_idx + 1):
@@ -80,10 +88,12 @@ def recursive_forecast(
                     ),
                 ]
             )
-            continue
+            continue  # Skip to the next iteration after appending the forecast
 
+        # Prepare the input sequence
         feature_cols = df.drop(columns=["PriceHU", "Date"]).columns
         
+        # Check if all required columns are present
         missing_cols = set(feature_scaler.get_feature_names_out()) - set(feature_cols)
         if missing_cols:
             print(f"Missing columns detected: {missing_cols}. Please check your data preprocessing.")
@@ -105,28 +115,36 @@ def recursive_forecast(
             X_t_plus_1_features[feature_scaler.get_feature_names_out()]
         )[:, :t_plus_1_feature_len]
 
-        # Adjust dimensions if necessary
-        lstm_output_size = model.hparams.hidden_size  # or adjust based on your LSTM's output size
-        expected_combined_size = lstm_output_size + model.hparams.t_plus1_dim
-        X_last_lstm_output = X_last_scaled_combined[:, -1, :]  # get last step output
+        # Ensure the concatenation aligns with model expectations
+        lstm_output_size = model.hparams.hidden_size
+        combined_input_size = lstm_output_size + model.hparams.t_plus1_dim
+        
+        # Convert the last sequence to a tensor and move to the correct device
+        X_tensor = torch.tensor(X_last_scaled_combined, dtype=torch.float32).to(device)
+        t_plus_1_features_tensor = torch.tensor(
+            X_t_plus_1_features_scaled, dtype=torch.float32
+        ).to(device)
 
-        combined_input = np.hstack([X_last_lstm_output, X_t_plus_1_features_scaled])
+        # Pass through LSTM and concatenate with T+1 features
+        lstm_out, _ = model.lstm(X_tensor)  # Get all outputs from LSTM
+        lstm_last_output = lstm_out[:, -1, :]  # Take the output at the last time step
+        
+        # Concatenate LSTM output with T+1 features
+        combined_input = torch.cat((lstm_last_output, t_plus_1_features_tensor), dim=1)
 
-        # Check if we need to adjust input sizes
-        if combined_input.shape[1] != expected_combined_size:
-            print(f"Adjusting input size from {combined_input.shape[1]} to {expected_combined_size}")
-            if combined_input.shape[1] > expected_combined_size:
-                combined_input = combined_input[:, :expected_combined_size]
-            else:
-                padding = np.zeros((combined_input.shape[0], expected_combined_size - combined_input.shape[1]))
-                combined_input = np.hstack([combined_input, padding])
+        # Ensure the combined input has the right size
+        assert combined_input.shape[1] == combined_input_size, (
+            f"Combined input size mismatch: expected {combined_input_size}, got {combined_input.shape[1]}"
+        )
 
-        X_tensor = torch.tensor(combined_input, dtype=torch.float32).to(device)
-
+        # Make prediction on the correct device
         with torch.no_grad():
-            y_pred_scaled = model(X_tensor, torch.zeros((1, t_plus_1_feature_len), dtype=torch.float32).to(device)).cpu().numpy()
+            y_pred_scaled = model.fc(combined_input).cpu().numpy()
 
+        # Inverse transform the prediction
         y_pred = target_scaler.inverse_transform(y_pred_scaled)
+
+        # Update the DataFrame with the predicted value
         df.at[current_idx, "PriceHU"] = y_pred[0, 0]
 
         forecast_df = pd.concat(
@@ -140,12 +158,15 @@ def recursive_forecast(
 
     return forecast_df
 
+# Set sequence length and moving average windows
 seq_len = 24
 windows = [12, 24, 36, 48, 7 * 24]
 
+# Load scalers
 feature_scaler = joblib.load("feature_scaler.joblib")
 target_scaler = joblib.load("target_scaler.joblib")
 
+# Load the model hyperparameters and state
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 model = SimpleLSTMModel(
     **json.load(open("hyperparameters_finetuning.json")),
@@ -155,10 +176,12 @@ model.load_state_dict(torch.load("lstm_network_state_es.pth", weights_only=True)
 model = model.to(device)
 print("Loaded the model on", device)
 
+# Load the dataset
 df = pd.read_excel(data_path)
 df["Date"] = pd.to_datetime(df["Date"])
 df["Date"] = df["Date"].apply(lambda x: x.round(freq="h"))
 
+# Get forecasting indices
 forecast_idx_list = df[
     (df["Date"] >= pd.to_datetime(forecast_start_date))
     & (df["Date"] <= pd.to_datetime(forecast_end_date))
@@ -166,6 +189,7 @@ forecast_idx_list = df[
 start_idx = forecast_idx_list[0]
 num_steps = len(forecast_idx_list)
 
+# Perform recursive forecasting
 output = recursive_forecast(
     df,
     start_idx,
@@ -177,5 +201,6 @@ output = recursive_forecast(
     windows,
 )
 
+# Save the forecast to a CSV file
 output.to_csv("forecast.csv", index=False)
 print("Forecasting Completed & result is stored")
