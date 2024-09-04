@@ -4,6 +4,8 @@ import torch
 import torch.nn as nn
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
+torch.set_float32_matmul_precision('medium')
+
 pl.seed_everything(106, workers=True)
 
 class UnscaledMSELoss(torch.nn.Module):
