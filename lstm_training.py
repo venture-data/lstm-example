@@ -15,8 +15,8 @@ from SimpleLSTMModel import SimpleLSTMModel
 pl.seed_everything(42, workers=True)
 
 # Check and set random seeds for reproducibility
-random.seed(42)
-np.random.seed(42)
+random.seed(106)
+np.random.seed(106)
 
 pd.set_option("display.max_columns", None)
 pd.options.mode.chained_assignment = None
