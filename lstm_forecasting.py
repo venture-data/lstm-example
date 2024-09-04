@@ -38,6 +38,8 @@ import pandas as pd
 pd.options.mode.chained_assignment = None
 import warnings
 
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
 data_path = sys.argv[1]
 # data_path = "drive/MyDrive/DATAFORMODELtrain250724.xlsx"
 
@@ -169,8 +171,8 @@ model = SimpleLSTMModel(
     target_scaler=target_scaler,
 )
 model.load_state_dict(torch.load("lstm_network_state_es.pth", weights_only=False))
-model = model.to("cpu")
-print("Loaded the model")
+model = model.to(device)
+print("Loaded the model on", device)
 
 
 df = pd.read_excel(data_path)
