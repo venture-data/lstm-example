@@ -15,7 +15,8 @@ def read_and_prepare_data(file_path, start_date, end_date, columns):
     df = pd.read_excel(file_path, parse_dates=["Date"])
 
     print("Converting 'Date' column to datetime format...")
-    df["Date"] = pd.to_datetime(df["Date"])
+    # Specify the format that matches your datetime strings
+    df["Date"] = pd.to_datetime(df["Date"], format="%Y-%m-%d %H:%M:%S")
 
     print(f"Filtering data between {start_date} and {end_date}...")
     df = df[(df["Date"] >= start_date) & (df["Date"] <= end_date)]
@@ -35,6 +36,7 @@ def read_and_prepare_data(file_path, start_date, end_date, columns):
 
     print("Data preparation completed. Returning processed DataFrame.")
     return df
+
 
 
 def objective(trial, train_dataloader):
