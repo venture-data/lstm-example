@@ -23,12 +23,13 @@ import warnings
 
 
 def add_moving_averages(df, column_list, windows):
-    # Function to apply moving averages
-    print(f"Applying moving averages to columns: {column_list} with windows: {windows}")
+    # Create a dictionary to store new columns
+    ma_dict = {}
     for column in column_list:
         for window in windows:
-            df[f"{column}_ma_{window}"] = df[column].rolling(window=window, min_periods=1).mean()
-    return df
+            ma_dict[f"{column}_ma_{window}"] = df[column].rolling(window=window, min_periods=1).mean()
+    # Use pd.concat to add all columns at once
+    return pd.concat([df, pd.DataFrame(ma_dict)], axis=1)
 
 
 # Reading command-line arguments
@@ -186,7 +187,9 @@ def objective(trial):
     hidden_size = trial.suggest_int("hidden_size", 32, 150)
     hidden_size1 = trial.suggest_int("hidden_size1", 32, 150)
     num_layers = trial.suggest_int("num_layers", 1, 4)
-    learning_rate = trial.suggest_loguniform("learning_rate", 1e-5, 1e-1)
+    learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-1, log=True)
+
+    # learning_rate = trial.suggest_loguniform("learning_rate", 1e-5, 1e-1)
 
     model = SimpleLSTMModel(
         input_size=X_train_tensor.shape[2],
