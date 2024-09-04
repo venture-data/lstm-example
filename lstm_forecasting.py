@@ -114,10 +114,6 @@ def recursive_forecast(
             X_t_plus_1_features[feature_scaler.get_feature_names_out()]
         )[:, :t_plus_1_feature_len]
 
-        # Ensure the concatenation aligns with model expectations
-        lstm_output_size = model.hparams.hidden_size
-        combined_input_size = lstm_output_size + model.hparams.t_plus1_dim
-        
         # Convert the last sequence to a tensor and move to the correct device
         X_tensor = torch.tensor(X_last_scaled_combined, dtype=torch.float32).to(device)
         t_plus_1_features_tensor = torch.tensor(
@@ -131,6 +127,9 @@ def recursive_forecast(
         # Concatenate LSTM output with T+1 features
         combined_input = torch.cat((lstm_last_output, t_plus_1_features_tensor), dim=1)
 
+        # Calculate the expected size based on model definition
+        combined_input_size = model.hparams.hidden_size + model.hparams.t_plus1_dim
+        
         # Ensure the combined input has the right size
         assert combined_input.shape[1] == combined_input_size, (
             f"Combined input size mismatch: expected {combined_input_size}, got {combined_input.shape[1]}"
