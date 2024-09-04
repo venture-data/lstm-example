@@ -60,6 +60,9 @@ def prepare_dataloader(data, max_encoder_length, max_prediction_length, batch_si
     data["time_idx"] = (data["Date"] - data["Date"].min()).dt.total_seconds() // 3600
     data["time_idx"] = data["time_idx"].astype(int)
 
+    # Add a dummy group_id column for single time series
+    data["group_id"] = 0  # All rows belong to group 0
+
     # Convert categorical features to strings or categorical types
     data["month"] = data["month"].astype(str)
     data["weekday"] = data["weekday"].astype(str)
@@ -77,7 +80,7 @@ def prepare_dataloader(data, max_encoder_length, max_prediction_length, batch_si
         data,
         time_idx="time_idx",  # Now using the integer time index
         target="PriceSK",  # Column representing the target variable
-        group_ids=["group_id"],  # Single group identifier since data is from one entity
+        group_ids=["group_id"],  # Use the newly created group_id column
         max_encoder_length=max_encoder_length,
         max_prediction_length=max_prediction_length,
         static_categoricals=static_categoricals,  # Correct static categorical features
@@ -95,5 +98,6 @@ def prepare_dataloader(data, max_encoder_length, max_prediction_length, batch_si
     train_dataloader = training.to_dataloader(train=True, batch_size=batch_size)
 
     return train_dataloader
+
 
 
