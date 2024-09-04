@@ -1,94 +1,181 @@
+import json
+import sys
+import joblib
 import numpy as np
+import pandas as pd
 import pytorch_lightning as pl
 import torch
-import torch.nn as nn
-from torch.optim.lr_scheduler import ReduceLROnPlateau
-
-torch.set_float32_matmul_precision('medium')
+from SimpleLSTMModel import SimpleLSTMModel
 
 pl.seed_everything(106, workers=True)
 
-class UnscaledMSELoss(torch.nn.Module):
-    def __init__(self, target_scaler):
-        super(UnscaledMSELoss, self).__init__()
-        self.target_scaler = target_scaler
-        self.mse_loss = torch.nn.MSELoss()
+import random
+random.seed(106)
 
-    def forward(self, y_pred, y_true):
-        # Extract median and IQR as tensors
-        median = torch.tensor(self.target_scaler.center_, dtype=torch.float32, device=y_pred.device)
-        iqr = torch.tensor(self.target_scaler.scale_, dtype=torch.float32, device=y_pred.device)
+np.random.seed(106)
+pd.options.mode.chained_assignment = None
 
-        # Reverse the scaling on y_pred and y_true using median and IQR from RobustScaler
-        y_pred_unscaled = y_pred * iqr + median
-        y_true_unscaled = y_true * iqr + median
+# Load command-line arguments
+data_path = sys.argv[1]
+forecast_start_date = sys.argv[2]
+forecast_end_date = sys.argv[3]
+variables = sys.argv[4]
+variables = list(map(str.strip, variables.lstrip("[").rstrip("]").split(",")))
 
-        # Compute the MSE loss on the unscaled values
-        loss = self.mse_loss(y_pred_unscaled, y_true_unscaled)
-        return loss
+def add_moving_averages(df, column_list, windows):
+    ma_dict = {}
+    for column in column_list:
+        for window in windows:
+            ma_dict[f"{column}_ma_{window}"] = df[column].rolling(window=window).mean()
+    df = pd.concat([df, pd.DataFrame(ma_dict)], axis=1)
+    return df
 
-class SimpleLSTMModel(pl.LightningModule):
-    def __init__(
-        self,
-        input_size,
-        t_plus1_dim,
-        hidden_size,
-        hidden_size1,
-        output_size,
-        num_layers,
-        learning_rate,
-        target_scaler,
-    ):
-        super(SimpleLSTMModel, self).__init__()
-        self.save_hyperparameters()
+def recursive_forecast(
+    df, start_idx, end_idx, seq_len, model, feature_scaler, target_scaler, ma_windows
+):
+    forecast_df = pd.DataFrame()
+    df["month"] = df["Date"].dt.month
+    df["week"] = df["Date"].dt.weekday
+    df["is_weekend"] = df["Date"].dt.weekday.isin([5, 6]).apply(int)
+    df["hour"] = df["Date"].dt.hour
+    df["peak_event"] = (df["Date"].dt.year.isin([2023, 2022])) | (
+        df["Date"] >= pd.to_datetime("2024/06/01")
+    ).apply(int)
 
-        self.lstm = nn.LSTM(
-            input_size=input_size,
-            hidden_size=hidden_size,
-            num_layers=num_layers,
-            batch_first=True,
+    for i in range(12):
+        df[f"month_{i}"] = (df["Date"].dt.month == i).values.astype(int)
+
+    for i in range(7):
+        df[f"week_{i}"] = (df["Date"].dt.weekday == i).values.astype(int)
+
+    for i in range(24):
+        df[f"hour_{i}"] = (df["Date"].dt.hour == i).values.astype(int)
+
+    df.loc[start_idx:end_idx, "PriceHU"] = 0  # Adjusted for PriceHU
+    df = add_moving_averages(df, variables + ["PriceHU"], windows)
+
+    cols = (
+        variables
+        + [
+            "peak_event",
+            "month",
+            "hour",
+            "week",
+            "is_weekend",
+        ]
+        + [f"month_{i}" for i in range(12)]
+        + [f"week_{i}" for i in range(7)]
+        + [f"hour_{i}" for i in range(24)]
+    )
+    t_plus_1_feature_len = len(cols)
+
+    for current_idx in range(start_idx, end_idx + 1):
+        if current_idx < seq_len - 1:
+            print("Not enough data to start forecasting")
+            forecast_df = pd.concat(
+                [
+                    forecast_df,
+                    pd.DataFrame(
+                        {"Date": [df.iloc[current_idx]["Date"]], "Forecast": [0]}
+                    ),
+                ]
+            )
+            continue
+
+        feature_cols = df.drop(columns=["PriceHU", "Date"]).columns
+        
+        missing_cols = set(feature_scaler.get_feature_names_out()) - set(feature_cols)
+        if missing_cols:
+            print(f"Missing columns detected: {missing_cols}. Please check your data preprocessing.")
+            continue
+
+        X_last = df.iloc[current_idx - seq_len : current_idx][feature_cols]
+        y_last = df.iloc[current_idx - seq_len : current_idx][["PriceHU"]]
+        X_t_plus_1_features = df.iloc[[current_idx]][feature_cols]
+
+        X_last_scaled = feature_scaler.transform(
+            X_last[feature_scaler.get_feature_names_out()]
         )
-        self.fc = nn.Linear(hidden_size + t_plus1_dim, hidden_size1)
-        self.fc1 = nn.Linear(hidden_size1, output_size)
-        self.loss_fn = UnscaledMSELoss(target_scaler)
+        y_last_scaled = target_scaler.transform(y_last)
+        X_last_scaled_combined = np.hstack(
+            [X_last_scaled, y_last_scaled],
+        ).reshape(1, seq_len, -1)
 
-        self.learning_rate = learning_rate
-        self.dropout = nn.Dropout(p=0.2)
+        X_t_plus_1_features_scaled = feature_scaler.transform(
+            X_t_plus_1_features[feature_scaler.get_feature_names_out()]
+        )[:, :t_plus_1_feature_len]
 
-    def forward(self, x, t_plus1_features):
-        lstm_out, _ = self.lstm(x)  # LSTM will handle hidden and cell states internally
-        lstm_out = lstm_out[:, -1, :]  # Use output from the last time step
-        combined_input = torch.cat((lstm_out, t_plus1_features), dim=1)
+        # Adjust dimensions if necessary
+        lstm_output_size = model.hparams.hidden_size  # or adjust based on your LSTM's output size
+        expected_combined_size = lstm_output_size + model.hparams.t_plus1_dim
+        X_last_lstm_output = X_last_scaled_combined[:, -1, :]  # get last step output
 
-        out = self.fc(combined_input)
-        out = self.dropout(out)
-        out = self.fc1(out)
-        return out
+        combined_input = np.hstack([X_last_lstm_output, X_t_plus_1_features_scaled])
 
-    def training_step(self, batch, batch_idx):
-        x, t_plus1_features, y = batch
-        y_hat = self(x, t_plus1_features)
-        loss = self.loss_fn(y_hat, y)
-        self.log("train_loss", loss, on_epoch=True, prog_bar=True)
-        return loss
+        # Check if we need to adjust input sizes
+        if combined_input.shape[1] != expected_combined_size:
+            print(f"Adjusting input size from {combined_input.shape[1]} to {expected_combined_size}")
+            if combined_input.shape[1] > expected_combined_size:
+                combined_input = combined_input[:, :expected_combined_size]
+            else:
+                padding = np.zeros((combined_input.shape[0], expected_combined_size - combined_input.shape[1]))
+                combined_input = np.hstack([combined_input, padding])
 
-    def validation_step(self, batch, batch_idx):
-        x, t_plus1_features, y = batch
-        y_pred_scaled = self(x, t_plus1_features)
-        loss = self.loss_fn(y_pred_scaled, y)
-        self.log("val_loss", loss, on_epoch=True, prog_bar=True)
-        return loss
+        X_tensor = torch.tensor(combined_input, dtype=torch.float32).to(device)
 
-    def test_step(self, batch, batch_idx):
-        x, t_plus1_features, y = batch
-        y_hat = self(x, t_plus1_features)
-        loss = self.loss_fn(y_hat, y)
-        self.log("test_loss", loss, on_epoch=True, prog_bar=True)
-        return loss
+        with torch.no_grad():
+            y_pred_scaled = model(X_tensor, torch.zeros((1, t_plus_1_feature_len), dtype=torch.float32).to(device)).cpu().numpy()
 
-    def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
-        scheduler = ReduceLROnPlateau(optimizer, mode="min", factor=0.5, patience=5)
-        return {"optimizer": optimizer, "lr_scheduler": {"scheduler": scheduler, "monitor": "val_loss"}}
-    
-    
+        y_pred = target_scaler.inverse_transform(y_pred_scaled)
+        df.at[current_idx, "PriceHU"] = y_pred[0, 0]
+
+        forecast_df = pd.concat(
+            [
+                forecast_df,
+                pd.DataFrame(
+                    {"Date": [df.iloc[current_idx]["Date"]], "Forecast": [y_pred[0, 0]]}
+                ),
+            ]
+        )
+
+    return forecast_df
+
+seq_len = 24
+windows = [12, 24, 36, 48, 7 * 24]
+
+feature_scaler = joblib.load("feature_scaler.joblib")
+target_scaler = joblib.load("target_scaler.joblib")
+
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+model = SimpleLSTMModel(
+    **json.load(open("hyperparameters_finetuning.json")),
+    target_scaler=target_scaler,
+)
+model.load_state_dict(torch.load("lstm_network_state_es.pth", weights_only=True))
+model = model.to(device)
+print("Loaded the model on", device)
+
+df = pd.read_excel(data_path)
+df["Date"] = pd.to_datetime(df["Date"])
+df["Date"] = df["Date"].apply(lambda x: x.round(freq="h"))
+
+forecast_idx_list = df[
+    (df["Date"] >= pd.to_datetime(forecast_start_date))
+    & (df["Date"] <= pd.to_datetime(forecast_end_date))
+].index
+start_idx = forecast_idx_list[0]
+num_steps = len(forecast_idx_list)
+
+output = recursive_forecast(
+    df,
+    start_idx,
+    forecast_idx_list[-1],
+    seq_len,
+    model,
+    feature_scaler,
+    target_scaler,
+    windows,
+)
+
+output.to_csv("forecast.csv", index=False)
+print("Forecasting Completed & result is stored")
