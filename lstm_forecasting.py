@@ -50,7 +50,7 @@ def recursive_forecast(
     for i in range(24):
         df[f"hour_{i}"] = (df["Date"].dt.hour == i).values.astype(int)
 
-    df.loc[start_idx:end_idx, "PriceSK"] = 0
+    df.loc[start_idx:end_idx, "PriceHU"] = 0  # Set forecast period to 0 for PriceHU
     cols = (
         variables
         + [
@@ -80,10 +80,10 @@ def recursive_forecast(
             )
 
         # Prepare the input sequence
-        df = add_moving_averages(df, ["PriceSK"], windows)
-        feature_cols = df.drop(columns=["PriceSK", "Date"]).columns
+        df = add_moving_averages(df, ["PriceHU"], windows)
+        feature_cols = df.drop(columns=["PriceHU", "Date"]).columns
         X_last = df.iloc[current_idx - seq_len : current_idx][feature_cols]
-        y_last = df.iloc[current_idx - seq_len : current_idx][["PriceSK"]]
+        y_last = df.iloc[current_idx - seq_len : current_idx][["PriceHU"]]
         X_t_plus_1_features = df.iloc[[current_idx]][feature_cols]
 
         X_last_scaled = feature_scaler.transform(
@@ -112,7 +112,7 @@ def recursive_forecast(
         y_pred = target_scaler.inverse_transform(y_pred_scaled)
 
         # Update the DataFrame with the predicted value
-        df.at[current_idx, "PriceSK"] = y_pred[0, 0]
+        df.at[current_idx, "PriceHU"] = y_pred[0, 0]
 
         forecast_df = pd.concat(
             [
