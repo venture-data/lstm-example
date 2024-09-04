@@ -7,12 +7,12 @@ import pytorch_lightning as pl
 import torch
 from SimpleLSTMModel import SimpleLSTMModel
 
-pl.seed_everything(106, workers=True)
+pl.seed_everything(42, workers=True)
 
 import random
-random.seed(106)
+random.seed(42)
 
-np.random.seed(106)
+np.random.seed(42)
 pd.options.mode.chained_assignment = None
 
 # Load command-line arguments
@@ -74,7 +74,6 @@ def recursive_forecast(
         + [f"week_{i}" for i in range(7)]
         + [f"hour_{i}" for i in range(24)]
     )
-    ignore_last_cols = 5 + 12 + 7 + 24
     t_plus_1_feature_len = len(cols)
 
     for current_idx in range(start_idx, end_idx + 1):
