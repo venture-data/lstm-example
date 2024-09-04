@@ -165,7 +165,7 @@ feature_scaler = joblib.load("feature_scaler.joblib")
 target_scaler = joblib.load("target_scaler.joblib")
 
 model = SimpleLSTMModel(
-    **json.load(open("lstm_hyperparameters.json")),
+    **json.load(open("hyperparameters_finetuning.json")),
     target_scaler=target_scaler,
 )
 model.load_state_dict(torch.load("lstm_network_state_es.pth", weights_only=False))
