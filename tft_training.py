@@ -5,7 +5,6 @@ import pandas as pd
 import numpy as np
 import json
 import optuna
-import torch
 from sklearn.metrics import mean_absolute_error, mean_squared_error, mean_absolute_percentage_error
 from tft_implementation import create_tft_model, prepare_dataloader
 
@@ -96,12 +95,12 @@ def evaluate_model(model, dataloader):
     return mae
 
 
-def main(file_path, start_date, end_date, columns):
+def main(file_path, start_date, end_date, columns, time_varying_unknown_reals):
     # Read and prepare the data
     data = read_and_prepare_data(file_path, start_date, end_date, columns)
 
     # Prepare data for TimeSeriesDataSet
-    train_dataloader = prepare_dataloader(data, max_encoder_length=168, max_prediction_length=24)
+    train_dataloader = prepare_dataloader(data, max_encoder_length=168, max_prediction_length=24, batch_size=64, time_varying_unknown_reals=time_varying_unknown_reals)
 
     # Hyperparameter optimization using Optuna
     study = optuna.create_study(direction="minimize")
@@ -121,6 +120,7 @@ if __name__ == "__main__":
     start_date = pd.to_datetime(sys.argv[2])
     end_date = pd.to_datetime(sys.argv[3])
     columns = json.loads(sys.argv[4].replace("'", '"'))  # Convert list string to actual list
+    time_varying_unknown_reals = json.loads(sys.argv[5].replace("'", '"'))  # Convert list string to actual list
 
     # Run the main function
-    main(file_path, start_date, end_date, columns)
+    main(file_path, start_date, end_date, columns, time_varying_unknown_reals)

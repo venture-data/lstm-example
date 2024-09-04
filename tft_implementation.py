@@ -41,7 +41,7 @@ def create_tft_model(train_dataloader, max_encoder_length, max_prediction_length
     return tft_model
 
 
-def prepare_dataloader(data, max_encoder_length, max_prediction_length, batch_size=64):
+def prepare_dataloader(data, max_encoder_length, max_prediction_length, batch_size=64, time_varying_unknown_reals=None):
     """
     Function to prepare the dataloader for the TFT model.
 
@@ -50,6 +50,7 @@ def prepare_dataloader(data, max_encoder_length, max_prediction_length, batch_si
         max_encoder_length (int): Maximum length of the historical input sequence.
         max_prediction_length (int): Maximum length of the forecast output sequence.
         batch_size (int): Batch size for the dataloader. Default is 64.
+        time_varying_unknown_reals (list): List of unknown real features.
 
     Returns:
         train_dataloader (DataLoader): Dataloader for the training data.
@@ -67,7 +68,7 @@ def prepare_dataloader(data, max_encoder_length, max_prediction_length, batch_si
         time_varying_known_categoricals=["month", "weekday", "is_weekend", "hour"],  # Known categorical features
         time_varying_known_reals=[],  # Known real features (if any)
         time_varying_unknown_categoricals=[],  # List of unknown categorical features (if any)
-        time_varying_unknown_reals=["PriceRO", "PriceCZ", "PriceHU", "COAL", "GAS", "AT_HU", "COALTOGAS", "CO2", "UNAVHYDRALL", "UNAVLIGNSK", "UNAVHYDRBG"],  # List of unknown real features
+        time_varying_unknown_reals=time_varying_unknown_reals,  # Dynamic unknown real features
         add_relative_time_idx=True,  # Adds a relative time index
         add_target_scales=True,  # Scale target variable
         add_encoder_length=True,  # Adds encoder length to dataset
