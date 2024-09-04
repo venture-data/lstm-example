@@ -60,6 +60,12 @@ def prepare_dataloader(data, max_encoder_length, max_prediction_length, batch_si
     data["time_idx"] = (data["Date"] - data["Date"].min()).dt.total_seconds() // 3600
     data["time_idx"] = data["time_idx"].astype(int)
 
+    # Remove columns that don't exist in your data
+    static_categoricals = []  # Update with any actual static categorical features
+    static_reals = []  # Update with any actual static real features
+    time_varying_known_categoricals = ["month", "weekday", "is_weekend", "hour"]  # Use the correct columns from your data
+    time_varying_known_reals = []  # Update with known real features if any
+
     # Create TimeSeriesDataSet for training
     training = TimeSeriesDataSet(
         data,
@@ -68,10 +74,10 @@ def prepare_dataloader(data, max_encoder_length, max_prediction_length, batch_si
         group_ids=["group_id"],  # Single group identifier since data is from one entity
         max_encoder_length=max_encoder_length,
         max_prediction_length=max_prediction_length,
-        static_categoricals=["Y", "M", "WDAY"],  # Example static categorical features
-        static_reals=[],  # If there are any static real features
-        time_varying_known_categoricals=["Y", "M", "Day", "H"],  # Known categorical features
-        time_varying_known_reals=[],  # Known real features (if any)
+        static_categoricals=static_categoricals,  # Correct static categorical features
+        static_reals=static_reals,  # Correct static real features
+        time_varying_known_categoricals=time_varying_known_categoricals,  # Correct known categorical features
+        time_varying_known_reals=time_varying_known_reals,  # Correct known real features
         time_varying_unknown_categoricals=[],  # List of unknown categorical features (if any)
         time_varying_unknown_reals=time_varying_unknown_reals,  # Dynamic unknown real features
         add_relative_time_idx=True,  # Adds a relative time index
@@ -83,3 +89,4 @@ def prepare_dataloader(data, max_encoder_length, max_prediction_length, batch_si
     train_dataloader = training.to_dataloader(train=True, batch_size=batch_size)
 
     return train_dataloader
+
