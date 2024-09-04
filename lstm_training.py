@@ -6,18 +6,15 @@ import optuna
 import pandas as pd
 import pytorch_lightning as pl
 import torch
-import torch.nn as nn
-import torch.optim as optim
+from torch.utils.data import DataLoader, TensorDataset
 from pytorch_lightning import Trainer
 from sklearn.preprocessing import RobustScaler
-from statsmodels.tsa.seasonal import seasonal_decompose
-from torch.utils.data import DataLoader, TensorDataset
 
 from SimpleLSTMModel import SimpleLSTMModel
 
 pl.seed_everything(42, workers=True)
 
-import random
+# Check and set random seeds for reproducibility
 random.seed(42)
 np.random.seed(42)
 
@@ -47,12 +44,16 @@ def add_moving_averages(df, column_list, windows):
 data_path = sys.argv[1]  # e.g., "DATAFORMODELtrain200824.xlsx"
 train_start_date = sys.argv[2]  # e.g., "2018-01-01 23:00"
 train_end_date = sys.argv[3]  # e.g., "2024-06-30 23:00"
-variables = sys.argv[4]  # e.g., "[PriceRO, PriceSK, PriceCZ, COAL, GAS, AT_HU, COALTOGAS, CO2, UNAVHYDRALL, UNAVLIGNSK, UNAVHYDRBG]"
+variables = sys.argv[4]  # e.g., "[PriceRO, PriceSK, PriceCZ, COAL, GAS, AT_HU, COALTOGAS, CO2, UNAVHYDRALL, UNAVLGNSK, UNAVHYDRBG]"
 
 # Convert input strings to appropriate Python objects
 train_start_date = pd.Timestamp(train_start_date)
 train_end_date = pd.Timestamp(train_end_date)
 variables = list(map(str.strip, variables.lstrip("[").rstrip("]").split(",")))
+
+# Check that input data is correctly formatted
+if not all(isinstance(v, str) for v in variables):
+    raise ValueError("The variables list must contain string column names.")
 
 # Moving average window sizes
 windows = [12, 24, 36, 48, 7 * 24]
@@ -82,10 +83,25 @@ for i in range(7):
 for i in range(24):
     df[f"hour_{i}"] = (df["Date"].dt.hour == i).astype(int)
 
-# Split the data into train, validation, and test sets based on the provided dates
-train_df = df[(df["Date"] <= pd.to_datetime(train_end_date))]
-val_df = df[(df["Date"] > pd.to_datetime(train_end_date)) & (df["Date"] <= pd.to_datetime(val_end_date))]
-test_df = df[(df["Date"] > pd.to_datetime(val_end_date)) & (df["Date"] <= pd.to_datetime(test_end_date))]
+# Define date ranges for validation and test splits
+val_ratio = 0.1  # 10% for validation
+test_ratio = 0.05  # 5% for testing
+
+total_days = (train_end_date - train_start_date).days
+train_days = int(total_days * (1 - val_ratio - test_ratio))
+val_days = int(total_days * val_ratio)
+test_days = total_days - train_days - val_days
+
+# Calculate the end date for train, validation, and test sets
+val_start_date = train_start_date + pd.Timedelta(days=train_days)
+val_end_date = val_start_date + pd.Timedelta(days=val_days)
+test_start_date = val_end_date + pd.Timedelta(days=1)
+test_end_date = test_start_date + pd.Timedelta(days=test_days)
+
+# Split the data into train, validation, and test sets
+train_df = df[(df["Date"] >= train_start_date) & (df["Date"] <= val_start_date)]
+val_df = df[(df["Date"] > val_start_date) & (df["Date"] <= val_end_date)]
+test_df = df[(df["Date"] > val_end_date) & (df["Date"] <= test_end_date)]
 
 # Apply moving averages to all relevant columns including the target column
 relevant_columns = variables + ["PriceHU"]
@@ -148,7 +164,6 @@ def create_sequences(data, target, seq_len, t_plus1_feature_len):
 seq_len = 24  # Example: Using 24 time steps (e.g., 24 hours if working with hourly data)
 
 # Determine the number of T+1 features
-# This should be the number of features in the input variables provided
 t_plus_1_feature_len = len(variables)  # Number of features to predict at the next time step
 
 # Create sequences for LSTM input
@@ -189,15 +204,13 @@ input_size = X_train_tensor.shape[2]
 t_plus1_dim = T_plus1_test_seq.shape[1]
 output_size = 1
 
-
+# Hyperparameter tuning using Optuna
 def objective(trial):
-    # Hyperparameters to tune
     hidden_size = trial.suggest_int("hidden_size", 32, 150)
     hidden_size1 = trial.suggest_int("hidden_size1", 32, 150)
     num_layers = trial.suggest_int("num_layers", 1, 4)
     learning_rate = trial.suggest_loguniform("learning_rate", 1e-5, 1e-1)
 
-    # Instantiate the model with trial hyperparameters
     model = SimpleLSTMModel(
         input_size=input_size,
         t_plus1_dim=t_plus1_dim,
@@ -209,17 +222,17 @@ def objective(trial):
         target_scaler=target_scaler,
     )
 
-    # Use an existing Trainer instance
+    # Create a PyTorch Lightning Trainer
     trainer = Trainer(
         max_epochs=4,
         accelerator="auto",
+        devices=1,
         precision=32,  # Use mixed precision if available
     )
 
     # Train the model
     trainer.fit(model, train_dataloaders=train_loader, val_dataloaders=val_loader)
 
-    # Evaluate on validation set
     val_loss = trainer.callback_metrics["val_loss"].item()
     return val_loss
 
@@ -231,25 +244,26 @@ best_params = study.best_params
 best_params["input_size"] = input_size
 best_params["output_size"] = output_size
 best_params["t_plus1_dim"] = t_plus1_dim
+
 print("Hyperparameter Tuning Ended")
 
-print("Initiating Model Training with best Hyperparameters")
+# Save hyperparameters
 with open("hyperparameters_finetuning.json", "w") as file:
     json.dump(best_params, file, indent=4)
 
 # Instantiate the best model
 checkpoint_callback = pl.callbacks.ModelCheckpoint(
-    monitor="val_loss",  # Metric to monitor
-    dirpath="checkpoints",  # Directory to save checkpoints
-    filename="best-model",  # File name of the best checkpoint
-    save_top_k=1,  # Save only the best model
-    mode="min",  # Mode for monitoring: 'min' for loss, 'max' for accuracy
+    monitor="val_loss",  
+    dirpath="checkpoints",  
+    filename="best-model",  
+    save_top_k=1,  
+    mode="min",  
 )
 early_stopping_callback = pl.callbacks.EarlyStopping(
     monitor="val_loss",
-    patience=20,  # Allow more epochs without improvement
+    patience=20, 
     mode="min",
-    verbose=3,
+    verbose=True,
 )
 
 model = SimpleLSTMModel(
@@ -267,28 +281,23 @@ model = SimpleLSTMModel(
 trainer = pl.Trainer(
     max_epochs=100,
     accelerator="auto",
+    devices=1,
     callbacks=[checkpoint_callback, early_stopping_callback],
 )
 
-# Train the model
-trainer.fit(
-    model,
-    train_loader,
-    val_loader,
-)
+# Train the model with best hyperparameters
+trainer.fit(model, train_loader, val_loader)
 
-# Saving data
-with open("lstm_hyperparameters.json", "w") as file:
-    json.dump(best_params, file, indent=4)
+# Save scalers
 joblib.dump(feature_scaler, "feature_scaler.joblib")
 joblib.dump(target_scaler, "target_scaler.joblib")
 
+# Save model checkpoint
 model = SimpleLSTMModel.load_from_checkpoint(
     checkpoint_callback.best_model_path,
     **json.load(open("lstm_hyperparameters.json")),
 )
 torch.save(model.state_dict(), "lstm_network_state_es.pth")
-model = model.to("cpu")
 
 print("Model & Scaler saved successfully....")
 
