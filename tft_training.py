@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 import json
 import optuna
+import torch 
 from sklearn.metrics import mean_absolute_error, mean_squared_error, mean_absolute_percentage_error
 from tft_implementation import create_tft_model, prepare_dataloader
 
@@ -12,6 +13,9 @@ from tft_implementation import create_tft_model, prepare_dataloader
 def read_and_prepare_data(file_path, start_date, end_date, columns):
     # Read Excel file
     df = pd.read_excel(file_path, parse_dates=["Date"])
+
+    # Convert the 'Date' column to datetime format to ensure correct comparison
+    df["Date"] = pd.to_datetime(df["Date"])
 
     # Filter data by date range
     df = df[(df["Date"] >= start_date) & (df["Date"] <= end_date)]
@@ -29,6 +33,7 @@ def read_and_prepare_data(file_path, start_date, end_date, columns):
     df["hour"] = df["Date"].dt.hour
 
     return df
+
 
 
 def objective(trial, train_dataloader):
