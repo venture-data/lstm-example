@@ -11,8 +11,9 @@ from pytorch_lightning import Trainer
 from sklearn.preprocessing import RobustScaler
 
 from SimpleLSTMModel import SimpleLSTMModel
+import random
 
-pl.seed_everything(42, workers=True)
+pl.seed_everything(106, workers=True)
 
 # Check and set random seeds for reproducibility
 random.seed(106)
