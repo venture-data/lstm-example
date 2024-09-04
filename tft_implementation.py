@@ -60,10 +60,16 @@ def prepare_dataloader(data, max_encoder_length, max_prediction_length, batch_si
     data["time_idx"] = (data["Date"] - data["Date"].min()).dt.total_seconds() // 3600
     data["time_idx"] = data["time_idx"].astype(int)
 
-    # Remove columns that don't exist in your data
+    # Convert categorical features to strings or categorical types
+    data["month"] = data["month"].astype(str)
+    data["weekday"] = data["weekday"].astype(str)
+    data["is_weekend"] = data["is_weekend"].astype(str)
+    data["hour"] = data["hour"].astype(str)
+
+    # Specify which columns are categorical and which are real
     static_categoricals = []  # Update with any actual static categorical features
     static_reals = []  # Update with any actual static real features
-    time_varying_known_categoricals = ["month", "weekday", "is_weekend", "hour"]  # Use the correct columns from your data
+    time_varying_known_categoricals = ["month", "weekday", "is_weekend", "hour"]  # Convert these to categorical
     time_varying_known_reals = []  # Update with known real features if any
 
     # Create TimeSeriesDataSet for training
@@ -89,4 +95,5 @@ def prepare_dataloader(data, max_encoder_length, max_prediction_length, batch_si
     train_dataloader = training.to_dataloader(train=True, batch_size=batch_size)
 
     return train_dataloader
+
 
