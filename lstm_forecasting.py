@@ -29,7 +29,7 @@ def add_moving_averages(df, column_list, windows):
     return df
 
 def recursive_forecast(
-    df, start_idx, end_idx, seq_len, model, feature_scaler, target_scaler, ma_windows
+    df, start_idx, end_idx, seq_len, model, feature_scaler, target_scaler, windows
 ):
 
     forecast_df = pd.DataFrame()
@@ -50,7 +50,12 @@ def recursive_forecast(
     for i in range(24):
         df[f"hour_{i}"] = (df["Date"].dt.hour == i).values.astype(int)
 
-    df.loc[start_idx:end_idx, "PriceHU"] = 0  # Set forecast period to 0 for PriceHU
+    # Ensure PriceHU is set to 0 for the forecast period
+    df.loc[start_idx:end_idx, "PriceHU"] = 0  
+    
+    # Add moving averages to DataFrame
+    df = add_moving_averages(df, variables, windows)
+
     cols = (
         variables
         + [
@@ -80,8 +85,14 @@ def recursive_forecast(
             )
 
         # Prepare the input sequence
-        df = add_moving_averages(df, ["PriceHU"], windows)
         feature_cols = df.drop(columns=["PriceHU", "Date"]).columns
+        
+        # Check if all required columns are present
+        missing_cols = set(feature_scaler.get_feature_names_out()) - set(feature_cols)
+        if missing_cols:
+            print(f"Missing columns detected: {missing_cols}. Please check your data preprocessing.")
+            continue
+
         X_last = df.iloc[current_idx - seq_len : current_idx][feature_cols]
         y_last = df.iloc[current_idx - seq_len : current_idx][["PriceHU"]]
         X_t_plus_1_features = df.iloc[[current_idx]][feature_cols]
@@ -139,7 +150,7 @@ model = SimpleLSTMModel(
     **json.load(open("hyperparameters_finetuning.json")),
     target_scaler=target_scaler,
 )
-model.load_state_dict(torch.load("lstm_network_state_es.pth"))
+model.load_state_dict(torch.load("lstm_network_state_es.pth", weights_only=True))
 model = model.to(device)
 print("Loaded the model on", device)
 
