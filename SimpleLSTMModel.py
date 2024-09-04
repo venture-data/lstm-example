@@ -2,7 +2,6 @@ import numpy as np
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
-import json
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 pl.seed_everything(106, workers=True)
@@ -89,35 +88,5 @@ class SimpleLSTMModel(pl.LightningModule):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
         scheduler = ReduceLROnPlateau(optimizer, mode="min", factor=0.5, patience=5)
         return {"optimizer": optimizer, "lr_scheduler": {"scheduler": scheduler, "monitor": "val_loss"}}
-
-# Ensure GPU is available
-if torch.cuda.is_available():
-    print("GPU is available.")
-else:
-    print("GPU is not available. Training will fall back to CPU.")
-
-# Load the best hyperparameters from the JSON file
-with open("lstm_hyperparameters.json", "r") as f:
-    best_params = json.load(f)
-
-# Initialize the model with the best hyperparameters
-model = SimpleLSTMModel(
-    input_size=best_params["input_size"], 
-    t_plus1_dim=best_params["t_plus1_dim"],
-    hidden_size=best_params["hidden_size"], 
-    hidden_size1=best_params["hidden_size1"], 
-    output_size=best_params["output_size"], 
-    num_layers=best_params["num_layers"], 
-    learning_rate=best_params["learning_rate"], 
-    target_scaler=your_target_scaler  # Replace with your actual scaler
-)
-
-# Configure the trainer to use GPU
-trainer = pl.Trainer(
-    max_epochs=100,
-    accelerator='gpu',  # Use 'gpu' accelerator
-    devices=1,  # Number of GPUs to use; set to '1' or the number of GPUs available
-)
-
-# Start training
-trainer.fit(model, train_loader, val_loader)
+    
+    
