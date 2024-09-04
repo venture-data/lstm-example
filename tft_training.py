@@ -16,7 +16,8 @@ def read_and_prepare_data(file_path, start_date, end_date, columns):
 
     print("Converting 'Date' column to datetime format...")
     # Specify the format that matches your datetime strings
-    df["Date"] = pd.to_datetime(df["Date"], format="%Y-%m-%d %H:%M:%S")
+    # df["Date"] = pd.to_datetime(df["Date"], format="%Y-%m-%d %H:%M:%S")
+    df["Date"] = pd.to_datetime(df["Date"], format="%d/%m/%y %H:%M").apply(lambda x: x.round(freq="h"))
 
     print(f"Filtering data between {start_date} and {end_date}...")
     df = df[(df["Date"] >= start_date) & (df["Date"] <= end_date)]
