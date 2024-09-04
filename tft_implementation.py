@@ -69,6 +69,12 @@ def prepare_dataloader(data, max_encoder_length, max_prediction_length, batch_si
     data["is_weekend"] = data["is_weekend"].astype(str)
     data["hour"] = data["hour"].astype(str)
 
+    # Check if all columns in time_varying_unknown_reals exist in the DataFrame
+    time_varying_unknown_reals = [col for col in time_varying_unknown_reals if col in data.columns]
+    missing_cols = [col for col in time_varying_unknown_reals if col not in data.columns]
+    if missing_cols:
+        print(f"Warning: The following columns are missing and will be removed from time_varying_unknown_reals: {missing_cols}")
+
     # Specify which columns are categorical and which are real
     static_categoricals = []  # Update with any actual static categorical features
     static_reals = []  # Update with any actual static real features
@@ -88,7 +94,7 @@ def prepare_dataloader(data, max_encoder_length, max_prediction_length, batch_si
         time_varying_known_categoricals=time_varying_known_categoricals,  # Correct known categorical features
         time_varying_known_reals=time_varying_known_reals,  # Correct known real features
         time_varying_unknown_categoricals=[],  # List of unknown categorical features (if any)
-        time_varying_unknown_reals=time_varying_unknown_reals,  # Dynamic unknown real features
+        time_varying_unknown_reals=time_varying_unknown_reals,  # Filtered dynamic unknown real features
         add_relative_time_idx=True,  # Adds a relative time index
         add_target_scales=True,  # Scale target variable
         add_encoder_length=True,  # Adds encoder length to dataset
@@ -98,6 +104,7 @@ def prepare_dataloader(data, max_encoder_length, max_prediction_length, batch_si
     train_dataloader = training.to_dataloader(train=True, batch_size=batch_size)
 
     return train_dataloader
+
 
 
 
