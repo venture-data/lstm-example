@@ -55,17 +55,22 @@ def prepare_dataloader(data, max_encoder_length, max_prediction_length, batch_si
     Returns:
         train_dataloader (DataLoader): Dataloader for the training data.
     """
+    # Create a time index column
+    data = data.copy()
+    data["time_idx"] = (data["Date"] - data["Date"].min()).dt.total_seconds() // 3600
+    data["time_idx"] = data["time_idx"].astype(int)
+
     # Create TimeSeriesDataSet for training
     training = TimeSeriesDataSet(
         data,
-        time_idx="Date",  # Column representing the time index
+        time_idx="time_idx",  # Now using the integer time index
         target="PriceSK",  # Column representing the target variable
-        group_ids=["group_id"],  # Unique identifier for each time series group; adjust as needed
+        group_ids=["group_id"],  # Single group identifier since data is from one entity
         max_encoder_length=max_encoder_length,
         max_prediction_length=max_prediction_length,
-        static_categoricals=[],  # List of static categorical features (if any)
-        static_reals=[],  # List of static real features (if any)
-        time_varying_known_categoricals=["month", "weekday", "is_weekend", "hour"],  # Known categorical features
+        static_categoricals=["Y", "M", "WDAY"],  # Example static categorical features
+        static_reals=[],  # If there are any static real features
+        time_varying_known_categoricals=["Y", "M", "Day", "H"],  # Known categorical features
         time_varying_known_reals=[],  # Known real features (if any)
         time_varying_unknown_categoricals=[],  # List of unknown categorical features (if any)
         time_varying_unknown_reals=time_varying_unknown_reals,  # Dynamic unknown real features
