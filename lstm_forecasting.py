@@ -7,7 +7,7 @@ import pytorch_lightning as pl
 import torch
 from SimpleLSTMModel import SimpleLSTMModel
 
-pl.seed_everything(42, workers=True)
+pl.seed_everything(106, workers=True)
 
 import random
 random.seed(106)
