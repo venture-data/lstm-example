@@ -45,13 +45,13 @@ def objective(trial, train_dataloader):
     print("Starting hyperparameter optimization trial...")
     # Define hyperparameters to optimize
     hidden_size = trial.suggest_int("hidden_size", 8, 64)
-    learning_rate = trial.suggest_loguniform("learning_rate", 1e-5, 1e-2)
-    dropout = trial.suggest_uniform("dropout", 0.1, 0.5)
+    learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)  # Updated from suggest_loguniform
+    dropout = trial.suggest_float("dropout", 0.1, 0.5)  # Updated from suggest_uniform
 
     print(f"Trial hyperparameters - hidden_size: {hidden_size}, learning_rate: {learning_rate}, dropout: {dropout}")
 
     # Create TFT model with given hyperparameters
-    model = create_tft_model(train_dataloader, max_encoder_length=168, max_prediction_length=24, hidden_size=hidden_size, learning_rate=learning_rate, dropout=dropout)
+    model = create_tft_model(train_dataloader, hidden_size=hidden_size, learning_rate=learning_rate, dropout=dropout)
 
     print("Model created, initializing optimizer...")
     # Define optimizer
@@ -79,6 +79,7 @@ def objective(trial, train_dataloader):
 
     print(f"Validation loss: {val_loss}")
     return val_loss
+
 
 
 def evaluate_model(model, dataloader):

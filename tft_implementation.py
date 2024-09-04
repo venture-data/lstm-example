@@ -6,14 +6,12 @@ from pytorch_forecasting.data import TimeSeriesDataSet
 from pytorch_forecasting.metrics import QuantileLoss
 
 
-def create_tft_model(train_dataloader, max_encoder_length, max_prediction_length, hidden_size=16, learning_rate=1e-3, dropout=0.1):
+def create_tft_model(train_dataloader, hidden_size=16, learning_rate=1e-3, dropout=0.1):
     """
     Function to create the Temporal Fusion Transformer (TFT) model.
 
     Args:
         train_dataloader (DataLoader): DataLoader for the training data.
-        max_encoder_length (int): Maximum length of the historical input sequence.
-        max_prediction_length (int): Maximum length of the forecast output sequence.
         hidden_size (int): Hidden size for the TFT model. Default is 16.
         learning_rate (float): Learning rate for training. Default is 1e-3.
         dropout (float): Dropout rate for regularization. Default is 0.1.
@@ -34,8 +32,6 @@ def create_tft_model(train_dataloader, max_encoder_length, max_prediction_length
         output_size=7,  # Output size for quantile predictions, adjust if needed
         loss=QuantileLoss(),  # Quantile loss function
         logging_metrics=None,  # Can add metrics like MAE, MSE
-        max_encoder_length=max_encoder_length,
-        max_prediction_length=max_prediction_length,
     )
 
     return tft_model
