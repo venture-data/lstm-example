@@ -3,6 +3,7 @@ import numpy as np
 import sys
 from prophet import Prophet
 from sklearn.preprocessing import RobustScaler
+import joblib
 import json
 
 def add_moving_averages(df, column_list, windows):
@@ -102,19 +103,10 @@ def main(input_file, start_date, end_date, regressors):
     # Fit the model
     model.fit(train_df)
 
-    # Forecasting future values
-    future = model.make_future_dataframe(periods=365, freq='H')
-
-    # Add the regressors for the future data
-    for regressor in regressor_list:
-        future[regressor] = train_df[regressor].values[:len(future)]
-
-    # Predict future values
-    forecast = model.predict(future)
-
-    # Output the forecast results
-    forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].to_csv('forecast_output.csv', index=False)
-    print("Forecasting complete. Results saved to 'forecast_output.csv'.")
+    # Save the trained model to a file
+    model_filename = 'trained_prophet_model.pkl'
+    joblib.dump(model, model_filename)
+    print(f"Model training complete. The model has been saved to '{model_filename}'.")
 
 if __name__ == "__main__":
     if len(sys.argv) != 5:
