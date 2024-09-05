@@ -103,7 +103,7 @@ def main(input_file, train_start_date, train_end_date, predict_start_date, predi
     model.fit(train_df)
 
     # Forecasting future values
-    future = model.make_future_dataframe(periods=(predict_end_date - predict_start_date).days * 24, freq='h')
+    future = model.make_future_dataframe(periods=(int((predict_end_date - predict_start_date).total_seconds() / 3600)), freq='H')
     logging.debug("Created future DataFrame for forecasting.")
 
     # Add the regressors for the future data
@@ -136,15 +136,15 @@ def main(input_file, train_start_date, train_end_date, predict_start_date, predi
     logging.info("Forecast results saved to 'forecast_output.csv'.")
 
 if __name__ == "__main__":
-    if len(sys.argv) != 6:
+    if len(sys.argv) != 7:
         print("Usage: python prophet_training.py <input_file> <train_start_date> <train_end_date> <predict_start_date> <predict_end_date> <regressors>")
         sys.exit(1)
     
     input_file = sys.argv[1]
-    train_start_date = pd.to_datetime(sys.argv[2], format='%Y-%m-%d')
-    train_end_date = pd.to_datetime(sys.argv[3], format='%Y-%m-%d')
-    predict_start_date = pd.to_datetime(sys.argv[4], format='%Y-%m-%d')
-    predict_end_date = pd.to_datetime(sys.argv[5], format='%Y-%m-%d')
+    train_start_date = pd.to_datetime(sys.argv[2], format='%Y-%m-%d %H:%M')
+    train_end_date = pd.to_datetime(sys.argv[3], format='%Y-%m-%d %H:%M')
+    predict_start_date = pd.to_datetime(sys.argv[4], format='%Y-%m-%d %H:%M')
+    predict_end_date = pd.to_datetime(sys.argv[5], format='%Y-%m-%d %H:%M')
     regressors = sys.argv[6]
 
     main(input_file, train_start_date, train_end_date, predict_start_date, predict_end_date, regressors)
