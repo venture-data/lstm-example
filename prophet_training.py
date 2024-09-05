@@ -45,26 +45,13 @@ def fill_missing_values(df, target, regressors):
         logging.debug(f"Filled missing values for regressor: {regressor}.")
     logging.debug("Missing value filling completed.")
 
-def split_data(df, train_start_date, train_end_date, val_ratio=0.1, test_ratio=0.05):
-    logging.debug("Splitting data into train, validation, and test sets.")
-    total_days = (train_end_date - train_start_date).days
-    train_days = int(total_days * (1 - val_ratio - test_ratio))
-    val_days = int(total_days * val_ratio)
-    test_days = total_days - train_days - val_days
+def split_data(df, train_start_date, train_end_date):
+    logging.debug("Splitting data into training set.")
+    train_df = df[(df['ds'] >= train_start_date) & (df['ds'] <= train_end_date)]
+    logging.debug(f"Training data range: {train_start_date} to {train_end_date}. Size: {train_df.shape}")
+    return train_df
 
-    val_start_date = train_start_date + pd.Timedelta(days=train_days)
-    val_end_date = val_start_date + pd.Timedelta(days=val_days)
-    test_start_date = val_end_date + pd.Timedelta(days=1)
-    test_end_date = test_start_date + pd.Timedelta(days=test_days)
-
-    train_df = df[(df['ds'] >= train_start_date) & (df['ds'] <= val_start_date)]
-    val_df = df[(df['ds'] > val_start_date) & (df['ds'] <= val_end_date)]
-    test_df = df[(df['ds'] > val_end_date) & (df['ds'] <= test_end_date)]
-
-    logging.debug("Data splitting completed.")
-    return train_df, val_df, test_df
-
-def main(input_file, start_date, end_date, regressors):
+def main(input_file, train_start_date, train_end_date, predict_start_date, predict_end_date, regressors):
     logging.info("Starting the Prophet model training process.")
 
     # Load the data
@@ -75,10 +62,6 @@ def main(input_file, start_date, end_date, regressors):
     # Convert date column to datetime with the correct format
     df['Date'] = pd.to_datetime(df['Date'], format='%m/%d/%Y %H:%M')
     logging.debug("Converted 'Date' column to datetime format.")
-
-    # Filter data between start_date and end_date
-    df = df[(df['Date'] >= start_date) & (df['Date'] <= end_date)]
-    logging.info(f"Data filtered between {start_date} and {end_date}. Remaining rows: {df.shape[0]}")
 
     # Prepare the data for Prophet
     df = df.rename(columns={'Date': 'ds', 'PriceSK': 'y'})  # Adjust target variable name
@@ -103,9 +86,8 @@ def main(input_file, start_date, end_date, regressors):
     df.dropna(inplace=True)
     logging.info(f"Data after dropping NaN values: {df.shape}")
 
-    # Split data into train, validation, and test sets
-    train_df, val_df, test_df = split_data(df, start_date, end_date)
-    logging.info(f"Train set size: {train_df.shape}, Validation set size: {val_df.shape}, Test set size: {test_df.shape}")
+    # Split data into training set
+    train_df = split_data(df, train_start_date, train_end_date)
 
     # Initialize the Prophet model
     model = Prophet()
@@ -121,7 +103,7 @@ def main(input_file, start_date, end_date, regressors):
     model.fit(train_df)
 
     # Forecasting future values
-    future = model.make_future_dataframe(periods=365, freq='h')
+    future = model.make_future_dataframe(periods=(predict_end_date - predict_start_date).days * 24, freq='h')
     logging.debug("Created future DataFrame for forecasting.")
 
     # Add the regressors for the future data
@@ -154,13 +136,15 @@ def main(input_file, start_date, end_date, regressors):
     logging.info("Forecast results saved to 'forecast_output.csv'.")
 
 if __name__ == "__main__":
-    if len(sys.argv) != 5:
-        print("Usage: python prophet_training.py <input_file> <start_date> <end_date> <regressors>")
+    if len(sys.argv) != 6:
+        print("Usage: python prophet_training.py <input_file> <train_start_date> <train_end_date> <predict_start_date> <predict_end_date> <regressors>")
         sys.exit(1)
     
     input_file = sys.argv[1]
-    start_date = pd.to_datetime(sys.argv[2], format='%Y-%m-%d %H:%M')
-    end_date = pd.to_datetime(sys.argv[3], format='%Y-%m-%d %H:%M')
-    regressors = sys.argv[4]
+    train_start_date = pd.to_datetime(sys.argv[2], format='%Y-%m-%d')
+    train_end_date = pd.to_datetime(sys.argv[3], format='%Y-%m-%d')
+    predict_start_date = pd.to_datetime(sys.argv[4], format='%Y-%m-%d')
+    predict_end_date = pd.to_datetime(sys.argv[5], format='%Y-%m-%d')
+    regressors = sys.argv[6]
 
-    main(input_file, start_date, end_date, regressors)
+    main(input_file, train_start_date, train_end_date, predict_start_date, predict_end_date, regressors)
