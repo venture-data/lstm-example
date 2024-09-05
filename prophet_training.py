@@ -35,7 +35,7 @@ def feature_engineering(df):
     logging.debug("Feature engineering completed.")
     return df
 
-def fill_missing_values(df, target):
+def fill_missing_values(df, target, regressors):
     # Check for missing values in the target variable
     if df[target].isna().any():
         logging.debug("Filling missing values in the target variable using spline interpolation.")
@@ -43,6 +43,16 @@ def fill_missing_values(df, target):
         logging.debug(f"Filled missing values for target: {target}.")
     else:
         logging.debug("No missing values found in the target variable.")
+
+    # Check and fill missing values for regressors with missing data
+    for regressor in regressors:
+        missing_count = df[regressor].isna().sum()
+        logging.info(f"Regressor {regressor} has {missing_count} missing values.")
+        if missing_count > 0:
+            logging.debug(f"Filling missing values for regressor: {regressor} using spline interpolation.")
+            df[regressor] = df[regressor].interpolate(method='spline', order=3)
+            logging.debug(f"Filled missing values for regressor: {regressor}.")
+    
     return df
 
 def split_data(df, train_start_date, train_end_date):
@@ -71,8 +81,16 @@ def main(input_file, train_start_date, train_end_date, predict_start_date, predi
     regressor_list = regressors.strip('[]').split(',')
     logging.debug(f"Regressors identified: {regressor_list}")
 
-    # Check and fill missing values in the target variable, if any
-    df = fill_missing_values(df, target)
+    # Identify which regressors have missing values
+    regressors_with_missing_values = [regressor for regressor in regressor_list if df[regressor].isna().sum() > 0]
+
+    # Display missing values information
+    for regressor in regressor_list:
+        missing_count = df[regressor].isna().sum()
+        print(f"Regressor {regressor} has {missing_count} missing values.")
+
+    # Check and fill missing values only for target and regressors with missing data
+    df = fill_missing_values(df, target, regressors_with_missing_values)
 
     # Apply feature engineering
     df = feature_engineering(df)
