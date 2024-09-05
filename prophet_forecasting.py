@@ -15,17 +15,18 @@ def prepare_future_data(df, start_date, end_date, regressors):
     logging.debug("Preparing future data for forecasting.")
 
     # Generate a date range for future predictions
-    future_dates = pd.date_range(start=start_date, end=end_date, freq='H')
+    future_dates = pd.date_range(start=start_date, end=end_date, freq='h')
     future = pd.DataFrame({'ds': future_dates})
 
     # Merge the future DataFrame with the input data to ensure regressors are aligned
     future = future.merge(df[['ds'] + regressors], on='ds', how='left')
 
-    # Fill missing regressor values with the last known value or interpolate if needed
+    # Fill missing regressor values using spline interpolation
     for regressor in regressors:
-        future[regressor].interpolate(method='linear', inplace=True)
-        future[regressor].fillna(method='ffill', inplace=True)
-        logging.debug(f"Filled missing values for regressor: {regressor}")
+        future[regressor] = future[regressor].interpolate(method='spline', order=3)
+        if future[regressor].isna().any():
+            logging.warning(f"Regressor {regressor} still contains NaN values after spline interpolation.")
+        logging.debug(f"Filled missing values for regressor: {regressor} using spline interpolation.")
 
     logging.debug("Future data prepared for forecasting.")
     return future
@@ -53,6 +54,11 @@ def main(input_file, start_date, end_date, regressors):
 
     # Prepare the future DataFrame with the date range and regressors
     future = prepare_future_data(df, pd.to_datetime(start_date), pd.to_datetime(end_date), regressor_list)
+
+    # Check for any remaining NaN values
+    if future.isna().any().any():
+        logging.error("Future data contains NaN values after processing. Check data preparation steps.")
+        sys.exit(1)
 
     # Forecast future values using the loaded model
     logging.info("Forecasting future values.")
