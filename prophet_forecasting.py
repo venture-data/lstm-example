@@ -21,12 +21,14 @@ def prepare_future_data(df, start_date, end_date, regressors):
     # Merge the future DataFrame with the input data to ensure regressors are aligned
     future = future.merge(df[['ds'] + regressors], on='ds', how='left')
 
-    # Fill missing regressor values using spline interpolation
+    # Fill missing regressor values using spline interpolation, followed by forward and backward fill
     for regressor in regressors:
         future[regressor] = future[regressor].interpolate(method='spline', order=3)
+        future[regressor] = future[regressor].ffill().bfill()  # Forward and backward fill as a fallback
         if future[regressor].isna().any():
-            logging.warning(f"Regressor {regressor} still contains NaN values after spline interpolation.")
-        logging.debug(f"Filled missing values for regressor: {regressor} using spline interpolation.")
+            logging.error(f"Regressor {regressor} still contains NaN values after filling.")
+        else:
+            logging.debug(f"Filled missing values for regressor: {regressor} using spline interpolation, ffill, and bfill.")
 
     logging.debug("Future data prepared for forecasting.")
     return future
