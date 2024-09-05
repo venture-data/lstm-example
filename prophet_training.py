@@ -51,7 +51,7 @@ def split_data(df, train_start_date, train_end_date):
     logging.debug(f"Training data range: {train_start_date} to {train_end_date}. Size: {train_df.shape}")
     return train_df
 
-def main(input_file, train_start_date, train_end_date, regressors):
+def main(input_file, train_start_date, train_end_date, predict_start_date, predict_end_date, regressors):
     logging.info("Starting the Prophet model training process.")
 
     # Load the data
@@ -62,10 +62,6 @@ def main(input_file, train_start_date, train_end_date, regressors):
     # Convert date column to datetime with the correct format
     df['Date'] = pd.to_datetime(df['Date'], format='%m/%d/%Y %H:%M')
     logging.debug("Converted 'Date' column to datetime format.")
-
-    # Filter data between start_date and end_date
-    df = df[(df['Date'] >= train_start_date) & (df['Date'] <= train_end_date)]
-    logging.info(f"Data filtered between {train_start_date} and {train_end_date}. Remaining rows: {df.shape[0]}")
 
     # Prepare the data for Prophet
     df = df.rename(columns={'Date': 'ds', 'PriceSK': 'y'})  # Adjust target variable name
@@ -107,7 +103,7 @@ def main(input_file, train_start_date, train_end_date, regressors):
     model.fit(train_df)
 
     # Forecasting future values
-    future = model.make_future_dataframe(periods=(pd.to_datetime('2024-08-20') - pd.to_datetime('2024-07-01')).days * 24, freq='h')
+    future = model.make_future_dataframe(periods=(predict_end_date - predict_start_date).days * 24, freq='h')
     logging.debug("Created future DataFrame for forecasting.")
 
     # Add the regressors for the future data
@@ -140,13 +136,15 @@ def main(input_file, train_start_date, train_end_date, regressors):
     logging.info("Forecast results saved to 'forecast_output.csv'.")
 
 if __name__ == "__main__":
-    if len(sys.argv) != 5:
-        print("Usage: python prophet_training.py <input_file> <train_start_date> <train_end_date> <regressors>")
+    if len(sys.argv) != 6:
+        print("Usage: python prophet_training.py <input_file> <train_start_date> <train_end_date> <predict_start_date> <predict_end_date> <regressors>")
         sys.exit(1)
     
     input_file = sys.argv[1]
-    train_start_date = pd.to_datetime(sys.argv[2], format='%Y-%m-%d %H:%M')
-    train_end_date = pd.to_datetime(sys.argv[3], format='%Y-%m-%d %H:%M')
-    regressors = sys.argv[4]
+    train_start_date = pd.to_datetime(sys.argv[2], format='%Y-%m-%d')
+    train_end_date = pd.to_datetime(sys.argv[3], format='%Y-%m-%d')
+    predict_start_date = pd.to_datetime(sys.argv[4], format='%Y-%m-%d')
+    predict_end_date = pd.to_datetime(sys.argv[5], format='%Y-%m-%d')
+    regressors = sys.argv[6]
 
-    main(input_file, train_start_date, train_end_date, regressors)
+    main(input_file, train_start_date, train_end_date, predict_start_date, predict_end_date, regressors)
