@@ -8,13 +8,12 @@ import logging
 # Configure logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
-def add_moving_averages(df, column_list, windows):
+def add_moving_averages(df, column, windows):
     logging.debug("Calculating moving averages.")
     ma_dict = {}
-    for column in column_list:
-        for window in windows:
-            ma_dict[f"{column}_ma_{window}"] = df[column].rolling(window=window, min_periods=1).mean()
-            logging.debug(f"Moving average calculated for column: {column} with window size: {window}.")
+    for window in windows:
+        ma_dict[f"{column}_ma_{window}"] = df[column].rolling(window=window, min_periods=1).mean()
+        logging.debug(f"Moving average calculated for column: {column} with window size: {window}.")
     logging.debug("All moving averages calculated.")
     return pd.concat([df, pd.DataFrame(ma_dict)], axis=1)
 
@@ -97,8 +96,8 @@ def main(input_file, start_date, end_date, regressors):
 
     # Moving average window sizes
     windows = [12, 24, 36, 48, 7 * 24]
-    logging.debug(f"Applying moving averages with window sizes: {windows}")
-    df = add_moving_averages(df, [target] + regressor_list, windows)
+    logging.debug(f"Applying moving averages to the target with window sizes: {windows}")
+    df = add_moving_averages(df, target, windows)
 
     # Drop rows with NaN values
     df.dropna(inplace=True)
