@@ -18,17 +18,34 @@ def prepare_future_data(df, start_date, end_date, regressors):
     future_dates = pd.date_range(start=start_date, end=end_date, freq='h')
     future = pd.DataFrame({'ds': future_dates})
 
+    # Ensure datetime format matches exactly
+    df['ds'] = pd.to_datetime(df['ds'])  # Reconfirm 'ds' is in datetime format
+
     # Merge the future DataFrame with the input data to ensure regressors are aligned
     future = future.merge(df[['ds'] + regressors], on='ds', how='left')
+
+    # Debugging: Log missing values information after merging
+    for regressor in regressors:
+        missing_count = future[regressor].isna().sum()
+        if missing_count > 0:
+            logging.error(f"After merging, regressor {regressor} has {missing_count} missing values.")
+        else:
+            logging.debug(f"Regressor {regressor} has no missing values after merging.")
 
     # Fill missing regressor values using spline interpolation, followed by forward and backward fill
     for regressor in regressors:
         future[regressor] = future[regressor].interpolate(method='spline', order=3)
         future[regressor] = future[regressor].ffill().bfill()  # Forward and backward fill as a fallback
+
+        # If NaNs still exist, fill with mean value as a final fallback
         if future[regressor].isna().any():
-            logging.error(f"Regressor {regressor} still contains NaN values after filling.")
+            logging.warning(f"Regressor {regressor} still contains NaN values after interpolation and ffill/bfill. Filling remaining NaNs with mean.")
+            future[regressor].fillna(future[regressor].mean(), inplace=True)
+
+        if future[regressor].isna().any():
+            logging.error(f"Regressor {regressor} still contains NaN values after all filling methods.")
         else:
-            logging.debug(f"Filled missing values for regressor: {regressor} using spline interpolation, ffill, and bfill.")
+            logging.debug(f"Filled missing values for regressor: {regressor} using all filling methods.")
 
     logging.debug("Future data prepared for forecasting.")
     return future
