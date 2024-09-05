@@ -2,7 +2,6 @@ import pandas as pd
 import numpy as np
 import sys
 from prophet import Prophet
-from sklearn.preprocessing import RobustScaler
 import json
 
 def add_moving_averages(df, column_list, windows):
@@ -34,10 +33,10 @@ def feature_engineering(df):
 
 def fill_missing_values(df, target, regressors):
     # Spline interpolation for target and regressors
-    df[target].interpolate(method='spline', order=3, inplace=True)
+    df[target] = df[target].interpolate(method='spline', order=3)
 
     for regressor in regressors:
-        df[regressor].interpolate(method='spline', order=3, inplace=True)
+        df[regressor] = df[regressor].interpolate(method='spline', order=3)
 
 def split_data(df, train_start_date, train_end_date, val_ratio=0.1, test_ratio=0.05):
     total_days = (train_end_date - train_start_date).days
@@ -106,8 +105,7 @@ def main(input_file, start_date, end_date, regressors):
     future = model.make_future_dataframe(periods=365, freq='H')
 
     # Add the regressors for the future data
-    for regressor in regressor_list:
-        future[regressor] = train_df[regressor].values[:len(future)]
+    future = future.merge(train_df[['ds'] + regressor_list], on='ds', how='left')
 
     # Predict future values
     forecast = model.predict(future)
