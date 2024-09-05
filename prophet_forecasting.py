@@ -8,94 +8,70 @@ import logging
 # Configure logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
-def prepare_future_data(df, start_date, end_date, regressors):
-    """
-    Prepare the future DataFrame for forecasting with the given date range and regressors.
-    """
-    logging.debug("Preparing future data for forecasting.")
-
-    # Generate a date range for future predictions
-    future_dates = pd.date_range(start=start_date, end=end_date, freq='h')
-    future = pd.DataFrame({'ds': future_dates})
-
-    # Ensure datetime format matches exactly
-    df['ds'] = pd.to_datetime(df['ds'])  # Reconfirm 'ds' is in datetime format
-
-    # Merge the future DataFrame with the input data to ensure regressors are aligned
-    future = future.merge(df[['ds'] + regressors], on='ds', how='left')
-
-    # Debugging: Log missing values information after merging
-    for regressor in regressors:
-        missing_count = future[regressor].isna().sum()
-        if missing_count > 0:
-            logging.error(f"After merging, regressor {regressor} has {missing_count} missing values.")
-        else:
-            logging.debug(f"Regressor {regressor} has no missing values after merging.")
-
-    # Fill missing regressor values using spline interpolation, followed by forward and backward fill
-    for regressor in regressors:
-        future[regressor] = future[regressor].interpolate(method='spline', order=3)
-        future[regressor] = future[regressor].ffill().bfill()  # Forward and backward fill as a fallback
-
-        # If NaNs still exist, fill with mean value as a final fallback
-        if future[regressor].isna().any():
-            logging.warning(f"Regressor {regressor} still contains NaN values after interpolation and ffill/bfill. Filling remaining NaNs with mean.")
-            future[regressor].fillna(future[regressor].mean(), inplace=True)
-
-        if future[regressor].isna().any():
-            logging.error(f"Regressor {regressor} still contains NaN values after all filling methods.")
-        else:
-            logging.debug(f"Filled missing values for regressor: {regressor} using all filling methods.")
-
-    logging.debug("Future data prepared for forecasting.")
-    return future
-
-def main(input_file, start_date, end_date, regressors):
+def main(input_file, predict_start_date, predict_end_date, regressors):
     logging.info("Starting the forecasting process.")
 
     # Load the trained model
     model_filename = 'trained_prophet_model.pkl'
+    logging.info(f"Loading trained model from '{model_filename}'.")
     model = joblib.load(model_filename)
-    logging.info(f"Loaded trained model from '{model_filename}'.")
 
-    # Load the data
+    # Load the data for future forecasting
     logging.debug("Loading data from Excel file.")
     df = pd.read_excel(input_file)
     logging.info(f"Data loaded with shape: {df.shape}")
 
     # Convert date column to datetime with the correct format
     df['Date'] = pd.to_datetime(df['Date'], format='%m/%d/%Y %H:%M')
-    df = df.rename(columns={'Date': 'ds'})  # Rename for consistency with Prophet
+    df = df.rename(columns={'Date': 'ds'})  # Adjust date column name for consistency
 
     # Convert the regressors string to a list
     regressor_list = regressors.strip('[]').split(',')
     logging.debug(f"Regressors identified: {regressor_list}")
 
-    # Prepare the future DataFrame with the date range and regressors
-    future = prepare_future_data(df, pd.to_datetime(start_date), pd.to_datetime(end_date), regressor_list)
+    # Create a future dataframe for the prediction period
+    future_dates = pd.date_range(start=predict_start_date, end=predict_end_date, freq='H')
+    future = pd.DataFrame({'ds': future_dates})
+    logging.debug("Preparing future data for forecasting.")
 
-    # Check for any remaining NaN values
+    # Merge regressor data into the future dataframe
+    future = future.merge(df[['ds'] + regressor_list], on='ds', how='left')
+
+    # Check for any NaN values after merging
+    for regressor in regressor_list:
+        missing_count = future[regressor].isna().sum()
+        if missing_count > 0:
+            logging.error(f"After merging, regressor {regressor} has {missing_count} missing values.")
+            print(f"Warning: {missing_count} missing values in {regressor} after merging. Consider filling these.")
+        else:
+            logging.debug(f"Regressor {regressor} has no missing values after merging.")
+
+    # Ensure no missing values before forecasting
+    future.fillna(method='ffill', inplace=True)
+    future.fillna(method='bfill', inplace=True)
+
+    # Check again for NaN values after filling
     if future.isna().any().any():
-        logging.error("Future data contains NaN values after processing. Check data preparation steps.")
+        logging.error("NaN values found in future data even after filling. Exiting.")
         sys.exit(1)
 
-    # Forecast future values using the loaded model
+    # Predict future values
     logging.info("Forecasting future values.")
     forecast = model.predict(future)
+    logging.info("Forecasting complete.")
 
-    # Save the forecast results to a file
-    forecast_output_file = 'forecast_output.csv'
-    forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].to_csv(forecast_output_file, index=False)
-    logging.info(f"Forecasting complete. Results saved to '{forecast_output_file}'.")
+    # Output the forecast results
+    forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].to_csv('forecast_output.csv', index=False)
+    logging.info("Forecast results saved to 'forecast_output.csv'.")
 
 if __name__ == "__main__":
     if len(sys.argv) != 5:
-        print("Usage: python prophet_forecasting.py <input_file> <start_date> <end_date> <regressors>")
+        print("Usage: python prophet_forecasting.py <input_file> <predict_start_date> <predict_end_date> <regressors>")
         sys.exit(1)
-
+    
     input_file = sys.argv[1]
-    start_date = sys.argv[2]
-    end_date = sys.argv[3]
+    predict_start_date = pd.to_datetime(sys.argv[2], format='%Y-%m-%d %H:%M')
+    predict_end_date = pd.to_datetime(sys.argv[3], format='%Y-%m-%d %H:%M')
     regressors = sys.argv[4]
 
-    main(input_file, start_date, end_date, regressors)
+    main(input_file, predict_start_date, predict_end_date, regressors)
