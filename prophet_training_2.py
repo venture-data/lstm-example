@@ -27,11 +27,11 @@ data = data[(data['Date'] >= start_date) & (data['Date'] <= end_date)]
 print(f"Filtered data to the date range from {start_date} to {end_date}. Number of rows after filtering: {len(data)}")
 
 # Prepare data for Prophet
-prophet_data = data.rename(columns={'Date': 'ds', 'PriceSK': 'y'})
+prophet_data = data.rename(columns={'Date': 'ds', 'PriceHU': 'y'})
 print(f"Prepared data for Prophet. First few rows:\n{prophet_data.head()}")
 
 # Identify regressor columns (all columns except 'ds' and 'y')
-regressor_columns = [col for col in data.columns if col not in ['Date', 'PriceSK']]
+regressor_columns = [col for col in data.columns if col not in ['Date', 'PriceHU']]
 print(f"Regressor columns identified: {regressor_columns}")
 
 # Initialize the Prophet model with custom parameters

@@ -41,7 +41,7 @@ future_data.rename(columns={'Date': 'ds'}, inplace=True)
 print(f"Prepared data for forecasting. First few rows:\n{future_data.head()}")
 
 # Check if regressor columns are present in the data
-regressor_columns = [col for col in data.columns if col not in ['Date', 'PriceSK']]
+regressor_columns = [col for col in data.columns if col not in ['Date', 'PriceHU']]
 missing_regressors = [reg for reg in regressor_columns if reg not in future_data.columns]
 if missing_regressors:
     print(f"Warning: Missing regressors in future data: {missing_regressors}")
