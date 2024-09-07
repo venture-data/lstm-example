@@ -1,12 +1,12 @@
 import sys
 import pandas as pd
-from prophet import Prophet  # Updated import for Prophet
+from prophet import Prophet
 import pickle
 
 # Command-line arguments
 csv_file = sys.argv[1]  # CSV file name
-start_date = sys.argv[2]  # Start date for training data
-end_date = sys.argv[3]  # End date for training data
+start_date = pd.to_datetime(sys.argv[2])  # Convert Start date to datetime
+end_date = pd.to_datetime(sys.argv[3])  # Convert End date to datetime
 
 print(f"Received arguments:\nCSV File: {csv_file}\nStart Date: {start_date}\nEnd Date: {end_date}")
 
@@ -14,30 +14,40 @@ print(f"Received arguments:\nCSV File: {csv_file}\nStart Date: {start_date}\nEnd
 data = pd.read_csv(csv_file)
 print(f"Data loaded from {csv_file}. Number of rows: {len(data)}, Number of columns: {len(data.columns)}")
 
-# Ensure 'Date' is in datetime format
-data['Date'] = pd.to_datetime(data['Date'], errors='coerce')
-print("Converted 'Date' column to datetime format.")
+# Ensure 'ds' (date column) is in datetime format
+data['ds'] = pd.to_datetime(data['ds'], errors='coerce')
+print("Converted 'ds' column to datetime format.")
 
-# Check for NaT (Not a Time) values in the 'Date' column
-num_nat = data['Date'].isna().sum()
-print(f"Number of NaT values in 'Date' column after conversion: {num_nat}")
+# Check for NaT (Not a Time) values in the 'ds' column and remove them
+num_nat = data['ds'].isna().sum()
+if num_nat > 0:
+    print(f"Number of NaT values in 'ds' column after conversion: {num_nat}. Removing these rows...")
+    data = data.dropna(subset=['ds'])
+    print(f"Removed rows with NaT values. Remaining rows: {len(data)}.")
 
 # Filter data based on the provided date range
-data = data[(data['Date'] >= start_date) & (data['Date'] <= end_date)]
+data = data[(data['ds'] >= start_date) & (data['ds'] <= end_date)]
 print(f"Filtered data to the date range from {start_date} to {end_date}. Number of rows after filtering: {len(data)}")
 
+# Ensure data is sorted by 'ds' in ascending order
+data = data.sort_values(by='ds', ascending=True)
+print("Data sorted by 'ds' in ascending order.")
+
 # Prepare data for Prophet
-prophet_data = data.rename(columns={'Date': 'ds', 'PriceHU': 'y'})
+prophet_data = data.copy()
 print(f"Prepared data for Prophet. First few rows:\n{prophet_data.head()}")
 
 # Identify regressor columns (all columns except 'ds' and 'y')
-regressor_columns = [col for col in data.columns if col not in ['Date', 'PriceHU']]
+regressor_columns = [col for col in data.columns if col not in ['ds', 'y']]
 print(f"Regressor columns identified: {regressor_columns}")
 
 # Initialize the Prophet model with custom parameters
 model = Prophet(
-    changepoint_prior_scale=0.1,  # Adjust this value to control trend flexibility
-    seasonality_prior_scale=10.0  # Increase this value to make seasonality more flexible
+    changepoint_prior_scale=0.3,  # Increased flexibility to better capture peaks and dips
+    seasonality_prior_scale=15.0,  # Allow more complex seasonality patterns
+    daily_seasonality=True,  # Enable daily seasonality explicitly
+    weekly_seasonality=True,  # Enable weekly seasonality explicitly
+    yearly_seasonality=True  # Enable yearly seasonality explicitly
 )
 print("Initialized Prophet model with custom parameters.")
 
@@ -52,7 +62,7 @@ model.fit(prophet_data)
 print("Model fitting completed.")
 
 # Save the trained model to a file
-model_file = 'trained_prophet_model.pkl'
+model_file = 'trained_prophet_model_PriceHU.pkl'
 with open(model_file, 'wb') as f:
     pickle.dump(model, f)
 
