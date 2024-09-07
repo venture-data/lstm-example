@@ -3,6 +3,11 @@ import pandas as pd
 from prophet import Prophet
 import pickle
 
+# Check if enough command-line arguments are provided
+if len(sys.argv) < 4:
+    print("Usage: python script_name.py <csv_file> <start_date> <end_date>")
+    sys.exit(1)
+
 # Command-line arguments
 csv_file = sys.argv[1]  # CSV file name
 start_date = pd.to_datetime(sys.argv[2])  # Convert Start date to datetime
@@ -54,12 +59,13 @@ for regressor in regressor_columns:
 
 # Initialize the Prophet model with custom parameters
 model = Prophet(
-    changepoint_prior_scale=0.3,  # Increased flexibility to better capture peaks and dips
+    changepoint_prior_scale=1.5,  # Increased flexibility to better capture peaks and dips
     seasonality_prior_scale=15.0,  # Allow more complex seasonality patterns
     daily_seasonality=True,  # Enable daily seasonality explicitly
     weekly_seasonality=True,  # Enable weekly seasonality explicitly
     yearly_seasonality=True,  # Enable yearly seasonality explicitly
-    seasonality_mode='multiplicative'
+    seasonality_mode='multiplicative',
+    changepoint_range = 1
 )
 print("Initialized Prophet model with custom parameters.")
 
@@ -73,8 +79,11 @@ print("Fitting the Prophet model...")
 model.fit(prophet_data)
 print("Model fitting completed.")
 
-# Save the trained model to a file
-model_file = 'trained_prophet_model_PriceHU.pkl'
+# Save the trained model to a file with a timestamp for version control
+from datetime import datetime
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+model_file = f'trained_prophet_model_PriceHU_3.pkl'
+
 with open(model_file, 'wb') as f:
     pickle.dump(model, f)
 
