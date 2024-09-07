@@ -75,7 +75,7 @@ model.fit(series=train_series, past_covariates=train_covariates)
 print("Model training completed.")
 
 # Save the trained model to a file
-model_file = '/Users/ammarahmad/Documents/Its IT Group/Fuel Price TimeSeries/lstm-example/NBEATSModel/trained_nbeats_model.pkl'
+model_file = './trained_nbeats_model.pkl'
 with open(model_file, 'wb') as f:
     pickle.dump(model, f)
 
@@ -99,7 +99,7 @@ rmse = np.sqrt(mse)
 print(f"Evaluation Metrics:\nMAE: {mae:.4f}\nMSE: {mse:.4f}\nRMSE: {rmse:.4f}")
 
 # Save evaluation metrics to a file
-metrics_file = '/Users/ammarahmad/Documents/Its IT Group/Fuel Price TimeSeries/lstm-example/NBEATSModel/nbeats_model_metrics.txt'
+metrics_file = './nbeats_model_metrics.txt'
 with open(metrics_file, 'w') as f:
     f.write(f"Mean Absolute Error (MAE): {mae:.4f}\n")
     f.write(f"Mean Squared Error (MSE): {mse:.4f}\n")
