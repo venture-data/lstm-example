@@ -60,11 +60,11 @@ model = NBEATSModel(
     input_chunk_length=24 * 30,     # Number of past observations to use for predicting the future
     output_chunk_length=24 * 7 * 3,    # Number of future observations to predict
     generic_architecture=True, # Use generic architecture
-    num_stacks=20,             # Number of stacks
-    num_blocks=4,              # Number of blocks per stack
-    num_layers=4,              # Number of fully connected layers per block
-    layer_widths=512,          # Width of the fully connected layers
-    n_epochs=100,              # Number of training epochs
+    num_stacks=10,             # Number of stacks
+    num_blocks=2,              # Number of blocks per stack
+    num_layers=2,              # Number of fully connected layers per block
+    layer_widths=256,          # Width of the fully connected layers
+    n_epochs=12,               # Number of training epochs
     batch_size=32,             # Batch size
     random_state=42            # Random state for reproducibility
 )
