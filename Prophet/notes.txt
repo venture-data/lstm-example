@@ -1,0 +1,66 @@
+price_hu_correlation:
+GAS             0.871612
+COAL            0.793855
+CO2             0.582177
+UNAVHYDRBG      0.518509
+T2MALLPCO2      0.510297
+UNAVGASBG       0.492151
+UNAVGASALL      0.486935
+UNAVHYDRALL     0.449667
+UNAVTPPHU       0.406717
+Date            0.406636
+UNAVGASHU       0.400937
+
+mi_score
+rolling_mean_3h     1.856059
+lag_1               1.765970
+lag_2               1.202180
+ewm_12h             1.134871
+rolling_mean_7d     1.064601
+lag_24              1.037132
+ewm_24h             0.973630
+lag_3               0.908519
+rolling_mean_24h    0.902183
+GAS                 0.898924
+rolling_mean_12h    0.894867
+COAL                0.881856
+UNAVGASRO           0.784952
+PMIHU               0.782551
+COALTOGAS           0.756620
+CO2                 0.735659
+UNAVGASHU           0.691356
+UNAVTPPBG           0.672349
+UNAVTPPRO           0.620059
+UNAVGASALL          0.615897
+UNAVLIGNRO          0.607481
+UNAVHYDRALL         0.598884
+lag_12              0.584388
+lag_6               0.577457
+UNAVTPPHU           0.564758
+UNAVTPPGR           0.556126
+UNAVLIGNBG          0.545901
+rolling_std_24h     0.536988
+UNAVGASGR           0.525794
+
+Uncorrelated Features: Index(['rolling_mean_3h', 'UNAVGASRO', 'PMIHU', 'COALTOGAS', 'CO2',
+       'UNAVGASHU', 'UNAVTPPBG', 'UNAVTPPRO', 'UNAVGASALL', 'UNAVHYDRALL',
+       'UNAVTPPGR', 'rolling_std_24h', 'UNAVGASGR'],
+      dtype='object')
+
+Selected Features based on Lasso: Index(['rolling_mean_3h', 'lag_24', 'rolling_mean_24h', 'lag_12', 'UNAVHYDRBG',
+       'UNAVGASALL', 'UNAVHYDRALL', 'UNAVLIGNRO', 'UNAVLIGNBG', 'lag_3',
+       'lag_2'],
+      dtype='object')
+
+Selected Features based on RFE: Index(['rolling_mean_3h', 'lag_1', 'lag_2', 'ewm_12h', 'rolling_std_24h',
+       'lag_24', 'ewm_24h', 'lag_3', 'lag_12', 'GAS'],
+      dtype='object')
+
+Final Selected Polynomial Features: {'lag_3 UNAVTPPRO', 'CO2 UNAVTPPRO', 'UNAVGASHU UNAVTPPRO', 'UNAVGASRO UNAVGASALL', 'UNAVGASRO UNAVGASHU', 'UNAVGASRO UNAVTPPBG', 'UNAVTPPBG UNAVTPPRO', 'lag_1 UNAVTPPBG', 'CO2 UNAVGASALL', 'UNAVGASHU UNAVTPPBG', 'UNAVTPPRO UNAVGASALL', 'COAL UNAVGASALL', 'rolling_mean_3h UNAVGASHU', 'lag_24^2', 'COAL UNAVTPPBG', 'COAL UNAVTPPRO', 'lag_1 UNAVGASRO', 'UNAVTPPBG^2', 'UNAVGASHU^2', 'UNAVGASRO UNAVTPPRO', 'CO2 UNAVTPPBG'}
+
+final_regressors = [
+    'rolling_mean_3h', 'lag_24', 'rolling_mean_24h', 'lag_12',
+    'UNAVHYDRBG', 'UNAVGASALL', 'UNAVHYDRALL', 'UNAVLIGNRO',
+    'UNAVLIGNBG', 'lag_3', 'lag_2', 'GAS', 'COAL', 'ewm_12h',
+    'rolling_mean_7d'
+]
