@@ -2,4 +2,4 @@ DATAFORMODELtrain200824.xlsx
 forecast.csv
 random_script.py
 *.csv
-*.pkl
+*.pkl.DS_Store
