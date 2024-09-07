@@ -39,8 +39,8 @@ print("No missing values detected in the data.")
 
 # Normalize the target and covariates data
 scaler = MinMaxScaler()
-data_scaled = pd.DataFrame(scaler.fit_transform(data), index=data.index, columns=data.columns)
-print("Normalized the data.")
+data_scaled = pd.DataFrame(scaler.fit_transform(data), index=data.index, columns=data.columns).astype(np.float32)
+print("Normalized the data and converted to float32.")
 
 # Convert to Darts TimeSeries objects
 series = TimeSeries.from_dataframe(data_scaled, value_cols=target_column)
@@ -75,7 +75,7 @@ model.fit(series=train_series, past_covariates=train_covariates)
 print("Model training completed.")
 
 # Save the trained model to a file
-model_file = 'trained_nbeats_model.pkl'
+model_file = '/Users/ammarahmad/Documents/Its IT Group/Fuel Price TimeSeries/lstm-example/NBEATSModel/trained_nbeats_model.pkl'
 with open(model_file, 'wb') as f:
     pickle.dump(model, f)
 
@@ -99,7 +99,7 @@ rmse = np.sqrt(mse)
 print(f"Evaluation Metrics:\nMAE: {mae:.4f}\nMSE: {mse:.4f}\nRMSE: {rmse:.4f}")
 
 # Save evaluation metrics to a file
-metrics_file = 'nbeats_model_metrics.txt'
+metrics_file = '/Users/ammarahmad/Documents/Its IT Group/Fuel Price TimeSeries/lstm-example/NBEATSModel/nbeats_model_metrics.txt'
 with open(metrics_file, 'w') as f:
     f.write(f"Mean Absolute Error (MAE): {mae:.4f}\n")
     f.write(f"Mean Squared Error (MSE): {mse:.4f}\n")
