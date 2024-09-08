@@ -4,3 +4,4 @@ random_script.py
 *.csv
 */*.pkl
 */.DS_Store
+lightning_logs/
