@@ -5,3 +5,4 @@ random_script.py
 */*.pkl
 */.DS_Store
 lightning_logs/
+*/*.pth
