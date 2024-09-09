@@ -46,7 +46,7 @@ def main(input_file, start_date, end_date, target_features):
 
         # Save the model
         model_name = f"{target}_nProphet"
-        model.save(f"{model_name}.pth")
+        model.save_model(f"{model_name}.pth")
         print(f"Model saved as {model_name}.pth")
 
 if __name__ == "__main__":
