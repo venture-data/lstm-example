@@ -6,7 +6,7 @@ import os
 def main(input_file, start_date, end_date, target_features):
     # Load the dataset
     print(f"Loading dataset from {input_file}...")
-    df = pd.read_csv(input_file)
+    df = pd.read_excel(input_file)
     
     # Convert the 'Date' column to datetime format and round to the nearest hour
     df['ds'] = pd.to_datetime(df['Date'], format='%m/%d/%y %H:%M').dt.round('h')
