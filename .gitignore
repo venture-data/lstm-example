@@ -6,3 +6,5 @@ random_script.py
 */.DS_Store
 lightning_logs/
 */*.pth
+*/*.pkl
+*.pkl

@@ -1,7 +1,6 @@
 import sys
 import pandas as pd
 from neuralprophet import NeuralProphet
-import os
 
 def main(input_file, start_date, end_date, target_features):
     # Load the dataset
@@ -12,11 +11,21 @@ def main(input_file, start_date, end_date, target_features):
     df['ds'] = pd.to_datetime(df['Date'], format='%m/%d/%y %H:%M').dt.round('h')
     print(f"Converted 'Date' to 'ds' format. Dataset loaded with {len(df)} rows.")
 
+    # Convert start_date and end_date to datetime format
+    start_date = pd.to_datetime(start_date)
+    end_date = pd.to_datetime(end_date)
+
     # Filter the dataset based on the provided training date range
     print(f"Filtering data for training from {start_date} to {end_date}...")
     df_filtered = df[(df['ds'] >= start_date) & (df['ds'] <= end_date)]
     print(f"Training dataset prepared with {len(df_filtered)} rows.")
 
+    # Check if the filtered DataFrame is empty
+    if df_filtered.empty:
+        print("Error: The filtered DataFrame is empty. Please check the date range or the input data.")
+        return
+
+    # Loop through each target feature and train a separate model
     for target in target_features:
         print(f"\nTraining model for target: {target}...")
         
@@ -40,14 +49,25 @@ def main(input_file, start_date, end_date, target_features):
         df_target = df_filtered[['ds', target, 'WDAY']].dropna()
         df_target = df_target.rename(columns={target: 'y'})  # Rename the target column to 'y'
 
+        # Check if the target DataFrame is empty
+        if df_target.empty:
+            print(f"Error: The target DataFrame for {target} is empty after filtering and dropping NaNs.")
+            continue
+
         # Train the model for the specific target
-        metrics = model.fit(df_target, freq='H')
+        metrics = model.fit(df_target, freq='h')  # 'h' for hourly frequency
         print(f"Model training complete for {target}. Metrics: {metrics}")
 
-        # Save the model
-        model_name = f"{target}_nProphet"
-        model.save_model(f"{model_name}.pth")
-        print(f"Model saved as {model_name}.pth")
+        # Forecast the next 3 weeks (504 hours)
+        print(f"Forecasting next 3 weeks for {target}...")
+        future_dates = model.make_future_dataframe(df=df_target, regressors_df=df_target[['ds', 'WDAY']], periods=504)
+        forecast = model.predict(future_dates)
+        print(f"Forecasting completed for {target}.")
+
+        # Save the forecast results to a CSV file
+        forecast_output_file = f'{target}_forecast.csv'
+        forecast.to_csv(forecast_output_file, index=False)
+        print(f"Forecast results saved to {forecast_output_file}.")
 
 if __name__ == "__main__":
     # Read command-line arguments
