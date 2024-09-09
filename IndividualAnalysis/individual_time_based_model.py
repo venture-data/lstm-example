@@ -17,7 +17,6 @@ def main(input_file, start_date, end_date, target_features):
     df_filtered = df[(df['ds'] >= start_date) & (df['ds'] <= end_date)]
     print(f"Training dataset prepared with {len(df_filtered)} rows.")
 
-    # Loop through each target feature and train a separate model
     for target in target_features:
         print(f"\nTraining model for target: {target}...")
         
@@ -35,10 +34,11 @@ def main(input_file, start_date, end_date, target_features):
         )
 
         # Add temporal feature regressors
-        model = model.add_future_regressor(name='WDay')  # Use only WDay as a regressor
+        model = model.add_future_regressor(name='WDAY')  # Use only WDAY as a regressor
         
         # Prepare the training data for the target
-        df_target = df_filtered[['ds', target, 'WDay']].dropna()
+        df_target = df_filtered[['ds', target, 'WDAY']].dropna()
+        df_target = df_target.rename(columns={target: 'y'})  # Rename the target column to 'y'
 
         # Train the model for the specific target
         metrics = model.fit(df_target, freq='H')
