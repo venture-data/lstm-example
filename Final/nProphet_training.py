@@ -62,8 +62,8 @@ def add_exponential_moving_average(data, column, ema_windows):
 
 # Read command-line arguments
 input_file = sys.argv[1]
-start_date = sys.argv[2]
-end_date = sys.argv[3]
+start_date = pd.to_datetime(sys.argv[2])  # Convert start_date to datetime
+end_date = pd.to_datetime(sys.argv[3]) 
 
 # Check the number of command-line arguments
 if len(sys.argv) == 4:
