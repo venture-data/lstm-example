@@ -17,7 +17,7 @@ model_file = os.path.join(script_dir, 'prophet_model.pkl')
 try:
     with open(model_file, 'rb') as f:
         model = pickle.load(f)
-        print(f"Loaded Prophet model from '{model_file}'.")
+    print(f"Loaded Prophet model from '{model_file}'.")
 except FileNotFoundError:
     print(f"Error: Trained model file '{model_file}' not found.")
     sys.exit(1)
@@ -28,9 +28,17 @@ print(f"Data loaded from {csv_file}. Number of rows: {len(data)}, Number of colu
 
 # Convert 'Date' column to datetime format and rename columns as needed
 data['ds'] = pd.to_datetime(data['Date']).dt.round('h')
-data['y'] = data['PriceHU']  # Ensure 'y' is the target column for forecasting
 
-data = data.drop(columns=['Date', 'PriceHU'])
+# Check if 'PriceHU' exists in the columns
+is_PriceHU = 'PriceHU' in data.columns
+
+if is_PriceHU:
+    print("'PriceHU' column found in data. Setting it as the target variable 'y'.")
+    data['y'] = data['PriceHU']  # Ensure 'y' is the target column for forecasting
+    data = data.drop(columns=['Date', 'PriceHU'])
+else:
+    data = data.drop(columns=['Date'])
+    
 
 # Ensure 'ds' is in datetime format and rounded to the nearest hour
 data['ds'] = pd.to_datetime(data['ds'], errors='coerce').dt.round('h')
@@ -77,20 +85,24 @@ forecast_output_file = os.path.join(script_dir, 'prophet_forecast.csv')
 forecast.to_csv(forecast_output_file, index=False)
 print(f"Forecast results saved to {forecast_output_file}.")
 
-# Evaluate the forecast
-print("Evaluating the forecast...")
-actual_data = data[(data['ds'] >= start_date) & (data['ds'] <= end_date)][['ds', 'y']].copy()
-forecast_results = forecast[['ds', 'yhat']].copy()
-evaluation_df = pd.merge(actual_data, forecast_results, on='ds', how='inner')
+if is_PriceHU:
+    # Evaluate the forecast
+    print("Evaluating the forecast...")
+    actual_data = data[(data['ds'] >= start_date) & (data['ds'] <= end_date)][['ds', 'y']].copy()
+    forecast_results = forecast[['ds', 'yhat']].copy()
+    evaluation_df = pd.merge(actual_data, forecast_results, on='ds', how='inner')
 
-mae = mean_absolute_error(evaluation_df['y'], evaluation_df['yhat'])
-mse = mean_squared_error(evaluation_df['y'], evaluation_df['yhat'])
-rmse = mean_squared_error(evaluation_df['y'], evaluation_df['yhat'], squared=False)
+    # Calculate metrics
+    mae = mean_absolute_error(evaluation_df['y'], evaluation_df['yhat'])
+    mse = mean_squared_error(evaluation_df['y'], evaluation_df['yhat'])
+    rmse = mse ** 0.5  # Calculate RMSE as the square root of MSE
 
-metrics_file = 'prophet_forecasting_metrics.txt'
-with open(metrics_file, 'w') as f:
-    f.write(f"Mean Absolute Error (MAE): {mae:.2f}\n")
-    f.write(f"Mean Squared Error (MSE): {mse:.2f}\n")
-    f.write(f"Root Mean Squared Error (RMSE): {rmse:.2f}\n")
+    metrics_file = 'prophet_forecasting_metrics.txt'
+    with open(metrics_file, 'w') as f:
+        f.write(f"Mean Absolute Error (MAE): {mae:.2f}\n")
+        f.write(f"Mean Squared Error (MSE): {mse:.2f}\n")
+        f.write(f"Root Mean Squared Error (RMSE): {rmse:.2f}\n")
 
-print(f"Evaluation metrics saved to '{metrics_file}'.")
+    print(f"Evaluation metrics saved to '{metrics_file}'.")
+else:
+    print("PriceHU wasn't found in the provided CSV, so metrics of how well the forecasting did cannot be calculated.")
