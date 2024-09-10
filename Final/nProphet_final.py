@@ -9,7 +9,7 @@ start_date = sys.argv[2]
 end_date = sys.argv[3]
 
 # Define the forecast period
-forecast_start_date = "2024-07-01 23:00"
+forecast_start_date = "2024-07-01 00:00"
 forecast_end_date = "2024-08-20 23:00"
 
 print(f"Loading dataset from {input_file}...")
@@ -60,11 +60,6 @@ print("All future regressors added.")
 print("Training the model...")
 model.fit(df_filtered, freq='h')
 print("Model training complete.")
-
-# Save the trained model to a file
-model_file = 'neuralprophet_model.pth'
-model.save(model_file)
-print(f"Model saved to {model_file}.")
 
 # Create a dataframe for future predictions using the actual future data from 'data_prep.csv'
 print(f"Preparing future dataframe for predictions from {forecast_start_date} to {forecast_end_date}...")
