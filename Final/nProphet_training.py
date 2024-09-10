@@ -64,7 +64,6 @@ def add_exponential_moving_average(data, column, ema_windows):
 input_file = sys.argv[1]
 start_date = sys.argv[2]
 end_date = sys.argv[3]
-manual_regressors = sys.argv[4]
 
 if len(sys.argv) == 3:
     is_automatic = True
