@@ -1,67 +1,31 @@
 import sys
 import pandas as pd
+from prophet import Prophet
 import pickle
 import warnings
-from neuralprophet import NeuralProphet
-import torch
-import numpy as np
-from sklearn.feature_selection import mutual_info_regression
 import os
+from sklearn.feature_selection import mutual_info_regression
+import numpy as np
 
-# Suppress all warnings
-warnings.filterwarnings("ignore")
 
 # Get the directory of the script
 script_dir = os.path.dirname(os.path.abspath(__file__))
 # Define the file name for the model
-model_file = os.path.join(script_dir, 'neuralprophet_model.pkl') 
-feature_csv_file = os.path.join(script_dir, 'features_for_nProphet.csv') 
+model_file = os.path.join(script_dir, 'prophet_model.pkl')
+feature_csv_file = os.path.join(script_dir, 'features_for_Prophet.csv')
 
 def add_lagged_features(data, column, lags):
-    """
-    Adds lagged features to the DataFrame for the specified column.
-
-    Parameters:
-    - data: DataFrame containing the data.
-    - column: The column to create lagged features for.
-    - lags: A list of lag periods to use.
-
-    Returns:
-    - DataFrame with lagged features added.
-    """
     for lag in lags:
         data[f'lag_{lag}'] = data[column].shift(lag)
     return data
 
 def add_rolling_window_features(data, column, windows):
-    """
-    Adds rolling window features (mean and std) to the DataFrame for the specified column.
-
-    Parameters:
-    - data: DataFrame containing the data.
-    - column: The column to create rolling window features for.
-    - windows: A list of window sizes to use.
-
-    Returns:
-    - DataFrame with rolling window features added.
-    """
     for window in windows:
         data[f'rolling_mean_{window}h'] = data[column].rolling(window).mean()
         data[f'rolling_std_{window}h'] = data[column].rolling(window).std()
     return data
 
 def add_exponential_moving_average(data, column, ema_windows):
-    """
-    Adds exponential moving average (EMA) features to the DataFrame for the specified column.
-
-    Parameters:
-    - data: DataFrame containing the data.
-    - column: The column to create EMA features for.
-    - ema_windows: A list of EMA window sizes to use.
-
-    Returns:
-    - DataFrame with EMA features added.
-    """
     for window in ema_windows:
         data[f'ema_{window}h'] = data[column].ewm(span=window).mean()
     return data
@@ -69,7 +33,7 @@ def add_exponential_moving_average(data, column, ema_windows):
 # Read command-line arguments
 input_file = sys.argv[1]
 start_date = pd.to_datetime(sys.argv[2])  # Convert start_date to datetime
-end_date = pd.to_datetime(sys.argv[3]) 
+end_date = pd.to_datetime(sys.argv[3])
 
 # Check the number of command-line arguments
 if len(sys.argv) == 4:
@@ -81,6 +45,9 @@ elif len(sys.argv) == 5:
 else:
     print("Invalid number of arguments passed. Expected 3 or 4 arguments.")
     sys.exit(1)
+
+min_date = pd.to_datetime('2017-01-01 00:00')
+cutoff_date = pd.to_datetime("2024-08-20 23:00")
 
 min_date = pd.to_datetime('2017-01-01 00:00')
 cutoff_date = pd.to_datetime("2024-08-20 23:00")
@@ -189,7 +156,7 @@ else:
     # Ensure we keep only the manually provided features and the newly created features
     columns_to_save = list(set(provided_features).intersection(engineered_features)) + ['Date', 'PriceHU']
 
-    
+
 data = data[columns_to_save]
 data.to_csv(feature_csv_file, index=False)
 data = data[(data['Date'] >= start_date) & (data['Date'] <= end_date)]
@@ -201,40 +168,29 @@ data = data.drop(columns=['Date', 'PriceHU'])
 
 print(f"Training dataset prepared with {len(data)} rows.")
 
-# Initialize the NeuralProphet model with customized parameters
-print("Initializing NeuralProphet model...")
-model = NeuralProphet(
-    growth="linear",
-    n_changepoints=40,
-    changepoints_range=0.95,
-    trend_reg=0.1,
-    trend_global_local="global",
-    yearly_seasonality="auto",
-    weekly_seasonality="auto",
-    daily_seasonality="auto",
-    seasonality_mode="additive",
-    seasonality_reg=0.1,
-    n_forecasts=504,
-    learning_rate=0.005,
-    epochs=1000,
-    batch_size=1024,
-    optimizer="AdamW",
-    impute_missing=True,
-    normalize="auto",
+# Initialize the Prophet model with custom parameters
+print("Initializing Prophet model...")
+model = Prophet(
+    changepoint_prior_scale=1.5,
+    seasonality_prior_scale=15.0,
+    daily_seasonality=True,
+    weekly_seasonality=True,
+    yearly_seasonality=True,
+    seasonality_mode='multiplicative',
+    changepoint_range=1
 )
 
-# Add future regressors and lagged regressors
-print("Adding future regressors and lagged regressors to the model...")
+# Add future regressors to the model
+print("Adding future regressors to the model...")
 for col in data.columns:
     if col not in ['ds', 'y']:
-            model = model.add_future_regressor(name=col)
+        model.add_regressor(col)
+print("All future regressors added.")
 
-print("All future and lagged regressors added.")
-
-# Train the model
-print("Training the model...")
-model.fit(data, freq='h')
-print("Model training complete.")
+# Fit the Prophet model
+print("Fitting the Prophet model...")
+model.fit(data)
+print("Model fitting completed.")
 
 # Save the trained model to a pickle file
 with open(model_file, 'wb') as f:
