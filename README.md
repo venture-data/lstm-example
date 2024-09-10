@@ -157,6 +157,6 @@ Feel free to explore these notebooks for additional insights and methodologies u
 ## Contributor(s)
 
 **Ammar Ahmad**  
-*Associate Data Scientist*
+_Associate Data Scientist_
 Email: [ammar.ahmad@venturedata.ai](mailto:ammar.ahmad@venturedata.ai)  
 Phone: +92-316-2493305  
