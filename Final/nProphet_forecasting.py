@@ -28,6 +28,8 @@ print(f"Dataset loaded with {len(df)} rows.")
 df['ds'] = pd.to_datetime(df['Date']).dt.round('h')
 df['y'] = df['PriceHU']  # Ensure 'y' is the target column for forecasting
 
+df = df.drop(columns=['Date', 'PriceHU'])
+
 # Prepare the future DataFrame for predictions
 print(f"Preparing future dataframe for predictions from {forecast_start_date} to {forecast_end_date}...")
 df_future = df[(df['ds'] >= forecast_start_date) & (df['ds'] <= forecast_end_date)].copy()

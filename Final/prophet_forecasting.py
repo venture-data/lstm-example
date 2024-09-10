@@ -17,7 +17,7 @@ model_file = os.path.join(script_dir, 'prophet_model.pkl')
 try:
     with open(model_file, 'rb') as f:
         model = pickle.load(f)
-    print(f"Loaded Prophet model from '{model_file}'.")
+        print(f"Loaded Prophet model from '{model_file}'.")
 except FileNotFoundError:
     print(f"Error: Trained model file '{model_file}' not found.")
     sys.exit(1)
@@ -55,7 +55,7 @@ if future.empty:
 regressor_columns = [col for col in data.columns if col not in ['ds', 'y']]  # Define all columns used as regressors
 
 # Ensure the 'is_weekend' and other regressors are correct
-future['is_weekend'] = future['ds'].apply(lambda x: 1 if x.weekday() >= 5 else 0)  # Recalculate is_weekend if needed
+# future['is_weekend'] = future['ds'].apply(lambda x: 1 if x.weekday() >= 5 else 0)  # Recalculate is_weekend if needed
 
 # Fill missing regressor values in the future DataFrame
 future[regressor_columns] = future[regressor_columns].ffill().bfill()
