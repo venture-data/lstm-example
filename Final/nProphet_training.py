@@ -3,7 +3,6 @@ import pandas as pd
 import pickle
 import warnings
 from neuralprophet import NeuralProphet
-import torch
 import numpy as np
 from sklearn.feature_selection import mutual_info_regression
 import os
