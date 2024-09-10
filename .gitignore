@@ -1,14 +1,31 @@
-DATAFORMODELtrain200824.xlsx
-forecast.csv
-random_script.py
-*.csv
-*/*.pkl
-*/.DS_Store
-lightning_logs/
-*/*.pth
-*/*.pkl
-*.pkl
+# Ignore all .DS_Store files (macOS system files)
 .DS_Store
+*/.DS_Store
 
-*/*.zip
+# Ignore Excel files (specific data files)
+*.xlsx
+*/*.xlsx
+
+# Ignore CSV files (data files)
+*.csv
+
+# Ignore Pickle files (Python serialized objects)
+*.pkl
+*/*.pkl
+
+# Ignore PyTorch model files
+*.pth
+*/*.pth
+
+# Ignore forecast files
+forecast.csv
+
+# Ignore script files that should not be tracked
+random_script.py
+
+# Ignore log directories (e.g., PyTorch Lightning logs)
+lightning_logs/
+
+# Ignore ZIP archives
 *.zip
+*/*.zip
