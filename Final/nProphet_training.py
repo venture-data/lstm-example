@@ -1,15 +1,21 @@
 import sys
 import pandas as pd
 import pickle
+import warnings
 from neuralprophet import NeuralProphet
+import torch
 import numpy as np
 from sklearn.feature_selection import mutual_info_regression
 import os
+
+# Suppress all warnings
+warnings.filterwarnings("ignore")
 
 # Get the directory of the script
 script_dir = os.path.dirname(os.path.abspath(__file__))
 # Define the file name for the model
 model_file = os.path.join(script_dir, 'neuralprophet_model.pkl') 
+feature_csv_file = os.path.join(script_dir, 'features_for_nProphet.csv') 
 
 def add_lagged_features(data, column, lags):
     """
@@ -96,6 +102,7 @@ print(f"Defining minimum and maximum dates data for training from {min_date} to 
 data = df[(df['Date'] >= min_date) & (df['Date'] <= cutoff_date)]
 
 if is_automatic:
+    print("Started Automatic feature selection")
     columns_to_drop = [
     'Y', 'M', 'Day', 'H', 'Y2016',	'Y2017',	'Y2018',	'Y2019',	'Y2020',	'Y2021',	'Y2022',	'Y2023',	'Y2024',
     'M1',	'M2',	'M3',	'M4',	'M5',	'M6',	'M7',	'M8',	'M9',	'M10',	'M11',	'M12',
@@ -141,6 +148,7 @@ if is_automatic:
     X = data.drop(['PriceHU', 'Date'], axis=1)
     y = data['PriceHU']
 
+    print("Started Mutual Information Score calculation. this will take a short while.")
     mi = mutual_info_regression(X, y)
     mi_scores = pd.Series(mi, name="MI Scores", index=X.columns).sort_values(ascending=False)
     
@@ -192,6 +200,8 @@ data['ds'] = data['Date']
 data['y'] = data['PriceHU']
 data = data.drop(columns=['Date', 'PriceHU'])
 
+data.to_csv(feature_csv_file, index=False)
+
 print(f"Training dataset prepared with {len(data)} rows.")
 
 # Initialize the NeuralProphet model with customized parameters
@@ -209,8 +219,8 @@ model = NeuralProphet(
     seasonality_reg=0.1,
     n_forecasts=504,
     learning_rate=0.005,
-    epochs=1000,
-    batch_size=1024,
+    epochs=10,
+    # batch_size=1024,
     optimizer="AdamW",
     impute_missing=True,
     normalize="auto",
@@ -229,7 +239,25 @@ print("Training the model...")
 model.fit(data, freq='h')
 print("Model training complete.")
 
-# Save the trained model to a pickle file
-with open(model_file, 'wb') as f:
-    pickle.dump(model, f)
-print(f"Model saved to {model_file}.")
+# # Save the trained model to a pickle file
+# with open(model_file, 'wb') as f:
+#     pickle.dump(model, f)
+# print(f"Model saved to {model_file}.")
+
+# # Save the model's state dictionary
+# model_file = os.path.join(script_dir, 'neuralprophet_model.pth')
+# torch.save(model.model.state_dict(), model_file)  # Save the underlying PyTorch model's state dict
+# print(f"Model state dictionary saved to {model_file}.")
+
+# # Save the trained model to a .pth file using NeuralProphet's save method
+# model_file = os.path.join(script_dir, 'neuralprophet_model.pth')
+# model.save(model_file)
+# print(f"Model saved to {model_file}.")
+
+# # Define the path for the model file
+# script_dir = os.path.dirname(os.path.abspath(__file__))  # Get the directory of the current script
+# model_file = os.path.join(script_dir, 'neuralprophet_model.pth')  # Path to save the .pth file
+
+# # Save the model's state dictionary
+# torch.save(model.model.state_dict(), model_file)  # Save the underlying PyTorch model's state dict
+# print(f"Model state dictionary saved to {model_file}.")
