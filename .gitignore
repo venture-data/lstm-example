@@ -8,6 +8,7 @@
 
 # Ignore CSV files (data files)
 *.csv
+*/*.csv
 
 # Ignore Pickle files (Python serialized objects)
 *.pkl
@@ -17,15 +18,12 @@
 *.pth
 */*.pth
 
-# Ignore forecast files
-forecast.csv
-
-# Ignore script files that should not be tracked
-random_script.py
-
 # Ignore log directories (e.g., PyTorch Lightning logs)
 lightning_logs/
 
 # Ignore ZIP archives
 *.zip
 */*.zip
+
+prophet_forecasting_metrics.txt
+nProphet_forecasting_metrics.txtf
