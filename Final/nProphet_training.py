@@ -65,14 +65,15 @@ input_file = sys.argv[1]
 start_date = sys.argv[2]
 end_date = sys.argv[3]
 
-if len(sys.argv) == 3:
+# Check the number of command-line arguments
+if len(sys.argv) == 4:
     is_automatic = True
-elif  len(sys.argv) == 4:
+elif len(sys.argv) == 5:
     manual_regressors = sys.argv[4]
     print(f"'manual_regressors' argument exists: {manual_regressors}")
     is_automatic = False
 else:
-    print("Very few arguments passed")
+    print("Invalid number of arguments passed. Expected 3 or 4 arguments.")
     sys.exit(1)
 
 min_date = pd.to_datetime('2017-01-01 00:00')
