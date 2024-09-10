@@ -107,12 +107,14 @@ if is_automatic:
     data = data.drop(columns=columns_to_drop)
     
     # Feature Engineering
+    print("Simple Time based features generated")
     data['hour'] = data['Date'].dt.hour
     data['day_of_week'] = data['Date'].dt.dayofweek
     data['is_weekend'] = data['day_of_week'].isin([5, 6]).astype(int)
     data['month'] = data['Date'].dt.month
 
     # Cyclical time-based features
+    print("Cyclical time-based features generated")
     data['sin_hour'] = np.sin(2 * np.pi * data['hour'] / 24)
     data['cos_hour'] = np.cos(2 * np.pi * data['hour'] / 24)
     data['sin_day_of_week'] = np.sin(2 * np.pi * data['day_of_week'] / 7)
@@ -120,18 +122,19 @@ if is_automatic:
     
     column = 'PriceHU'
     
+    print("Added Lags")
     lags = [1, 3, 6, 12, 24, 48, 72, 168]
     data = add_lagged_features(data, column, lags)
     
-    # Step 3: Add Rolling Window Features
+    print("Added rolling windows")
     windows = [3, 6, 12, 24, 168]
     data = add_rolling_window_features(data, column, windows)
     
-    # Step 4: Add Exponential Moving Average Features
+    print("Added ema windows")
     ema_windows = [12, 24, 168]
     data = add_exponential_moving_average(data, column, ema_windows)
     
-    data = df[(df['Date'] >= start_date) & (df['Date'] <= end_date)]
+    data = data[(data['Date'] >= start_date) & (data['Date'] <= end_date)]
     data = data.dropna()
     
     # Mutual Information for Feature Selection
@@ -169,7 +172,7 @@ else:
     ema_windows = [12, 24, 168]
     data = add_exponential_moving_average(data, column, ema_windows)
 
-    data = df[(df['Date'] >= start_date) & (df['Date'] <= end_date)]
+    data = data[(data['Date'] >= start_date) & (data['Date'] <= end_date)]
     # Drop any rows with NaN values that were created by the feature engineering
     data = data.dropna()
 
@@ -185,9 +188,9 @@ else:
 data = data[columns_to_save]
 
 # Convert the 'ds' column to datetime format
-df['ds'] = df['Date']
-df['y'] = df['PriceHU']
-df = df.drop(columns=['Date', 'PriceHU'])
+data['ds'] = data['Date']
+data['y'] = data['PriceHU']
+data = data.drop(columns=['Date', 'PriceHU'])
 
 print(f"Training dataset prepared with {len(data)} rows.")
 
