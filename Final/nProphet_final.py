@@ -51,12 +51,15 @@ model = NeuralProphet(
 
 # Add future regressors and lagged regressors
 print("Adding future regressors and lagged regressors to the model...")
+# for col in df_filtered.columns:
+#     if col not in ['ds', 'y']:
+#         if 'lag_' in col:  # Identifying lagged columns
+#             model = model.add_lagged_regressor(names=col)
+#         else:
+#             model = model.add_future_regressor(names=col)
 for col in df_filtered.columns:
     if col not in ['ds', 'y']:
-        if 'lag_' in col:  # Identifying lagged columns
-            model = model.add_lagged_regressor(name=col)
-        else:
-            model = model.add_future_regressor(name=col)
+        model = model.add_future_regressor(names=col)
 
 print("All future and lagged regressors added.")
 
