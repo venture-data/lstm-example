@@ -9,3 +9,6 @@ lightning_logs/
 */*.pkl
 *.pkl
 .DS_Store
+
+*/*.zip
+*.zip
