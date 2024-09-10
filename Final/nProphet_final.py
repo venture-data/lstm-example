@@ -1,7 +1,7 @@
 import sys
 import pandas as pd
 from neuralprophet import NeuralProphet
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 
 # Read command-line arguments
 input_file = sys.argv[1]
@@ -30,38 +30,42 @@ print(f"Training dataset prepared with {len(df_filtered)} rows.")
 # Initialize the NeuralProphet model with customized parameters
 print("Initializing NeuralProphet model...")
 model = NeuralProphet(
-    growth="linear",  # Assuming no saturation in fuel prices; use "logistic" if there is a saturation point.
-    n_changepoints=40,  # Increased number of changepoints to handle high variability
-    changepoints_range=0.95,  # Allow changepoints across most of the training data
-    trend_reg=0.1,  # Small regularization to avoid overfitting trend changes
-    trend_global_local="global",  # Use a global trend model
-    yearly_seasonality="auto",  # Disable yearly seasonality unless it's relevant
-    weekly_seasonality="auto",  # Let the model automatically detect weekly seasonality
-    daily_seasonality="auto",  # Let the model automatically detect daily seasonality
-    seasonality_mode="additive",  # Additive seasonality to handle independent seasonal effects
-    seasonality_reg=0.1,  # Small regularization to avoid overfitting seasonal patterns
-    n_forecasts=504,  # Predict the next 3 weeks (24 hours * 21 days)
-    learning_rate=0.005,  # Set a stable learning rate
-    epochs=1000,  # Use a high number of epochs due to large dataset size
-    batch_size=1024,  # Batch size based on available hardware, use higher if running on a GPU
-    optimizer="AdamW",  # Use AdamW optimizer for efficient training with weight decay
-    impute_missing=True,  # Enable missing value imputation
-    normalize="auto",  # Automatic normalization to scale the data appropriately
+    growth="linear",
+    n_changepoints=40,
+    changepoints_range=0.95,
+    trend_reg=0.1,
+    trend_global_local="global",
+    yearly_seasonality="auto",
+    weekly_seasonality="auto",
+    daily_seasonality="auto",
+    seasonality_mode="additive",
+    seasonality_reg=0.1,
+    n_forecasts=504,
+    learning_rate=0.005,
+    epochs=1000,
+    batch_size=1024,
+    optimizer="AdamW",
+    impute_missing=True,
+    normalize="auto",
 )
 
-# Add all columns except 'ds' and 'y' as regressors
-print("Adding future regressors to the model...")
+# Add future regressors and lagged regressors
+print("Adding future regressors and lagged regressors to the model...")
 for col in df_filtered.columns:
     if col not in ['ds', 'y']:
-        model = model.add_future_regressor(name=col)
-print("All future regressors added.")
+        if 'lag_' in col:  # Identifying lagged columns
+            model = model.add_lagged_regressor(name=col)
+        else:
+            model = model.add_future_regressor(name=col)
+
+print("All future and lagged regressors added.")
 
 # Train the model
 print("Training the model...")
 model.fit(df_filtered, freq='h')
 print("Model training complete.")
 
-# Create a dataframe for future predictions using the actual future data from 'data_prep.csv'
+# Prepare future dataframe for predictions
 print(f"Preparing future dataframe for predictions from {forecast_start_date} to {forecast_end_date}...")
 df_future = df[(df['ds'] >= forecast_start_date) & (df['ds'] <= forecast_end_date)].copy()
 print(f"Future dataframe prepared with {len(df_future)} rows.")
