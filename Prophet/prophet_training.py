@@ -64,7 +64,7 @@ df = pd.read_excel(input_file)
 print(f"Dataset loaded with {len(df)} rows.")
 
 print(f"Finding best feature based on entire, valid, dataset.")
-data = df[(df['Date'] >= min_date) & (df['Date'] <= end_date)]
+data = df[(df['Date'] >= min_date) & (df['Date'] <= cutoff_date)]
 data["Date"] = data["Date"].dt.round('h')
 
 if is_automatic:
