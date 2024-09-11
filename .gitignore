@@ -1,2 +1,29 @@
-DATAFORMODELtrain200824.xlsx
-forecast.csv
+# Ignore all .DS_Store files (macOS system files)
+.DS_Store
+*/.DS_Store
+
+# Ignore Excel files (specific data files)
+*.xlsx
+*/*.xlsx
+
+# Ignore CSV files (data files)
+*.csv
+*/*.csv
+
+# Ignore Pickle files (Python serialized objects)
+*.pkl
+*/*.pkl
+
+# Ignore PyTorch model files
+*.pth
+*/*.pth
+
+# Ignore log directories (e.g., PyTorch Lightning logs)
+lightning_logs/
+
+# Ignore ZIP archives
+*.zip
+*/*.zip
+
+prophet_forecasting_metrics.txt
+nProphet_forecasting_metrics.txtf
