@@ -49,8 +49,8 @@ else:
 min_date = pd.to_datetime('2017-01-01 00:00')
 cutoff_date = pd.to_datetime("2024-08-20 23:00")
 
-min_date = pd.to_datetime('2017-01-01 00:00')
-cutoff_date = pd.to_datetime("2024-08-20 23:00")
+# min_date = pd.to_datetime('2017-01-01 00:00')
+# cutoff_date = pd.to_datetime("2024-08-20 23:00")
 
 # Validate the dates
 if start_date < min_date or end_date > cutoff_date:
@@ -63,7 +63,7 @@ print(f"Loading dataset from {input_file}...")
 df = pd.read_excel(input_file)
 print(f"Dataset loaded with {len(df)} rows.")
 
-print(f"Defining minimum and maximum dates data for training from {min_date} to {cutoff_date}...")
+print(f"Finding best feature based on entire, valid, dataset.")
 data = df[(df['Date'] >= min_date) & (df['Date'] <= cutoff_date)]
 data["Date"] = data["Date"].dt.round('h')
 
@@ -159,6 +159,7 @@ else:
 
 data = data[columns_to_save]
 data.to_csv(feature_csv_file, index=False)
+print(f"Filtering Data for training from {start_date} till {end_date}")
 data = data[(data['Date'] >= start_date) & (data['Date'] <= end_date)]
 
 # Convert the 'ds' column to datetime format
