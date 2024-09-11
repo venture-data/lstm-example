@@ -66,6 +66,7 @@ print(f"Dataset loaded with {len(df)} rows.")
 print(f"Finding best feature based on entire, valid, dataset.")
 data = df[(df['Date'] >= min_date) & (df['Date'] <= cutoff_date)]
 data["Date"] = data["Date"].dt.round('h')
+data_feature_filtering = data[(data['Date'] >= min_date) & (data['Date'] <= end_date)]
 
 if is_automatic:
     print("Started Automatic feature selection")
