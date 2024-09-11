@@ -157,6 +157,8 @@ else:
     columns_to_save = list(set(provided_features).intersection(engineered_features)) + ['Date', 'PriceHU']
 
 
+# After Completing the Feature Selection the data will be cut off based on input end date
+
 data = data[columns_to_save]
 data.to_csv(feature_csv_file, index=False)
 print(f"Filtering Data for training from {start_date} till {end_date}")
