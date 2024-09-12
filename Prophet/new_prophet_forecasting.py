@@ -16,6 +16,32 @@ def load_model(model_path):
         print(f"Error: Trained model file '{model_path}' not found.")
         sys.exit(1)
 
+def update_features(data, current_prediction):
+    """ Update lag, EMA, and rolling window features with the current prediction """
+    # Append the predicted 'yhat' to the dataset
+    data = pd.concat([data, current_prediction])
+
+    # Update lag features
+    lags = [1, 3, 6, 12, 24, 48, 72, 168]
+    for lag in lags:
+        data[f'lag_{lag}'] = data['y'].shift(lag)
+
+    # Update rolling window features
+    windows = [3, 6, 12, 24, 168]
+    for window in windows:
+        data[f'rolling_mean_{window}h'] = data['y'].rolling(window=window).mean()
+        data[f'rolling_std_{window}h'] = data['y'].rolling(window=window).std()
+
+    # Update EMA features
+    ema_windows = [12, 24, 168]
+    for window in ema_windows:
+        data[f'ema_{window}h'] = data['y'].ewm(span=window).mean()
+
+    # Handle NaN values appropriately (skip if not enough data)
+    data = data.ffill().bfill()  # Forward and backward fill to handle NaNs
+    
+    return data
+
 def preprocess_data(data, start_date, end_date):
     """ Preprocess the input data for forecasting """
     # Convert 'Date' to datetime and handle errors
@@ -25,6 +51,8 @@ def preprocess_data(data, start_date, end_date):
     else:
         print("Error: 'Date' column not found in input data.")
         sys.exit(1)
+
+    print(f"Data types after conversion:\n{data.dtypes}")  # Check data types
 
     # Check if 'PriceHU' exists and set it as the target variable
     if 'PriceHU' in data.columns:
@@ -41,58 +69,50 @@ def preprocess_data(data, start_date, end_date):
         data = data.dropna(subset=['ds'])
         print(f"Removed rows with NaT values. Remaining rows: {len(data)}.")
 
+    # Check the range of dates
+    print(f"Min ds: {data['ds'].min()}, Max ds: {data['ds'].max()}")  # Check the range of dates
+
     # Filter data to only include the required prediction dates
     future = data[(data['ds'] >= start_date) & (data['ds'] <= end_date)].copy()
     
     if future.empty:
         print("Error: The future DataFrame is empty after filtering. Check the date range.")
+        print(f"Date range provided: {start_date} to {end_date}")
+        print(f"Available data date range: {data['ds'].min()} to {data['ds'].max()}")
         sys.exit(1)
 
     # Define regressor columns used during training
     regressor_columns = [col for col in data.columns if col not in ['ds', 'y']]
 
-    # Fill missing regressor values
-    if regressor_columns:
-        future[regressor_columns] = future[regressor_columns].ffill().bfill()
-
-    print(f"Prepared future DataFrame for forecasting. First few rows:\n{future.head()}")
-
-    # Check for NaN values after filling
-    if regressor_columns and future[regressor_columns].isna().sum().sum() > 0:
-        print("Warning: There are still NaN values in the regressors after filling. Replacing with 0.")
-        future[regressor_columns] = future[regressor_columns].fillna(0)  # Final fallback to zero
-
     return future, regressor_columns
 
-def forecast_and_save(model, future, output_path):
-    """ Perform forecasting and save the results to a CSV file """
-    print("Starting forecast...")
-    forecast = model.predict(future)
-    print("Forecasting completed.")
+def iterative_forecast(model, data, start_date, end_date, regressor_columns):
+    """ Perform iterative forecasting with dynamic feature updates """
+    # Prepare the data for iterative forecasting
+    forecast_df = pd.DataFrame(columns=['ds', 'yhat'])
+    current_data = data.copy()
 
-    forecast.to_csv(output_path, index=False)
-    print(f"Forecast results saved to {output_path}.")
-    return forecast
+    # Predict iteratively for each time step
+    for current_date in pd.date_range(start=start_date, end=end_date, freq='h'):
+        future_df = current_data[(current_data['ds'] == current_date)].copy()
 
-def evaluate_forecast(data, forecast, start_date, end_date):
-    """ Evaluate the forecast using actual data and save metrics """
-    actual_data = data[(data['ds'] >= start_date) & (data['ds'] <= end_date)][['ds', 'y']].copy()
-    forecast_results = forecast[['ds', 'yhat']].copy()
-    evaluation_df = pd.merge(actual_data, forecast_results, on='ds', how='inner')
+        # Ensure no NaNs in regressor columns before prediction
+        if future_df[regressor_columns].isna().sum().sum() > 0:
+            future_df[regressor_columns] = future_df[regressor_columns].fillna(0)
 
-    # Calculate evaluation metrics
-    mae = mean_absolute_error(evaluation_df['y'], evaluation_df['yhat'])
-    mse = mean_squared_error(evaluation_df['y'], evaluation_df['yhat'])
-    rmse = mse ** 0.5  # Root Mean Squared Error
+        # Predict the next time step
+        forecast = model.predict(future_df)
 
-    # Save metrics to file
-    metrics_file = 'prophet_forecasting_metrics.txt'
-    with open(metrics_file, 'w') as f:
-        f.write(f"Mean Absolute Error (MAE): {mae:.2f}\n")
-        f.write(f"Mean Squared Error (MSE): {mse:.2f}\n")
-        f.write(f"Root Mean Squared Error (RMSE): {rmse:.2f}\n")
+        # Append the prediction to forecast_df
+        forecast_df = pd.concat([forecast_df, forecast[['ds', 'yhat']]], ignore_index=True)
 
-    print(f"Evaluation metrics saved to '{metrics_file}'.")
+        # Update the 'y' column with the predicted value for the next iteration
+        current_data.at[len(current_data), 'y'] = forecast['yhat'].iloc[0]
+        
+        # Update lag, rolling window, and EMA features
+        current_data = update_features(current_data, forecast)
+
+    return forecast_df
 
 def main(csv_file, start_date_str, end_date_str):
     # Convert command-line dates to datetime
@@ -111,22 +131,18 @@ def main(csv_file, start_date_str, end_date_str):
 
     # Load data from CSV file
     data = pd.read_csv(csv_file)
-    data['Date'] = data['Date'].dt.round('h')
-    data = data.dropna()
     print(f"Data loaded from {csv_file}. Number of rows: {len(data)}, Number of columns: {len(data.columns)}")
 
     # Preprocess the data
     future, regressor_columns = preprocess_data(data, start_date, end_date)
 
-    # Forecast and save results
-    forecast_output_file = os.path.join(script_dir, 'prophet_forecast.csv')
-    forecast = forecast_and_save(model, future, forecast_output_file)
+    # Forecast iteratively
+    forecast_df = iterative_forecast(model, future, start_date, end_date, regressor_columns)
 
-    # Evaluate forecast if target variable exists
-    if 'y' in data.columns:
-        evaluate_forecast(data, forecast, start_date, end_date)
-    else:
-        print("PriceHU wasn't found in the provided CSV, so metrics of how well the forecasting did cannot be calculated.")
+    # Save forecast to CSV
+    forecast_output_file = os.path.join(script_dir, 'prophet_forecast.csv')
+    forecast_df.to_csv(forecast_output_file, index=False)
+    print(f"Forecast results saved to {forecast_output_file}.")
 
 if __name__ == "__main__":
     if len(sys.argv) < 4:
