@@ -210,6 +210,7 @@ def main(input_file, start_date, end_date, is_automatic=True, manual_regressors=
         # Select and save features
         top_features = mi_scores[mi_scores > 0.3].index.tolist()
         columns_to_save = top_features + ['Date', 'PriceHU']
+        df.dropna()
         df = df[columns_to_save]
         df.to_csv(feature_csv_file, index=False)
         print(f"\tTop features selected and saved: {top_features}")
