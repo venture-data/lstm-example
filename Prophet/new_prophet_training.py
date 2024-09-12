@@ -85,19 +85,19 @@ def apply_feature_engineering(data):
     data['sin_day_of_week'] = np.sin(2 * np.pi * data['Day'] / 7)
     data['cos_day_of_week'] = np.cos(2 * np.pi * data['Day'] / 7)
 
-    # create_fourier_features(data, period=168, order=5)
-    # print("\tFourier features generated.")
+    create_fourier_features(data, period=168, order=5)
+    print("\tFourier features generated.")
 
-    # # Exclude columns for polynomial calculations
-    # exclude_columns = ['Date', 'PriceHU'] + [col for col in data.columns if 'lag_' in col or 'rolling_' in col or 'ema_' in col]
-    # poly_columns = [col for col in data.columns if col not in exclude_columns]
+    # Exclude columns for polynomial calculations
+    exclude_columns = ['Date', 'PriceHU'] + [col for col in data.columns if 'lag_' in col or 'rolling_' in col or 'ema_' in col]
+    poly_columns = [col for col in data.columns if col not in exclude_columns]
 
-    # print("\tGenerating polynomial features...")
-    # poly = PolynomialFeatures(degree=2, interaction_only=False, include_bias=False)
-    # poly_features = poly.fit_transform(data[poly_columns])
-    # poly_features_df = pd.DataFrame(poly_features, columns=poly.get_feature_names_out(poly_columns))
-    # data = pd.concat([data, poly_features_df], axis=1)
-    # print("\tPolynomial features generated.")
+    print("\tGenerating polynomial features...")
+    poly = PolynomialFeatures(degree=2, interaction_only=False, include_bias=False)
+    poly_features = poly.fit_transform(data[poly_columns])
+    poly_features_df = pd.DataFrame(poly_features, columns=poly.get_feature_names_out(poly_columns))
+    data = pd.concat([data, poly_features_df], axis=1)
+    print("\tPolynomial features generated.")
     
     return data
 
@@ -161,43 +161,43 @@ def main(input_file, start_date, end_date, is_automatic=True, manual_regressors=
         print("\tMerging calculated features back to the original dataset...")
         df = pd.merge(df, historical_data[['Date'] + list(new_columns)], on='Date', how='left')
 
-        print(f"Columns after merge: {df.columns.tolist()}")
+        # print(f"Columns after merge: {df.columns.tolist()}")
         
         # Check again if 'PriceHU' is present
         if 'PriceHU' not in df.columns:
             raise KeyError("'PriceHU' column is missing after merging. Please check your merging logic.")
 
-        # # Exclude lag, EMA, rolling window columns from further feature calculations
-        # exclude_columns = [col for col in df.columns if 'lag_' in col or 'rolling_' in col or 'ema_' in col]
+        # Exclude lag, EMA, rolling window columns from further feature calculations
+        exclude_columns = [col for col in df.columns if 'lag_' in col or 'rolling_' in col or 'ema_' in col]
 
-        # # Mutual Information for feature selection
-        # print("\tStarting Mutual Information score calculation...")
+        # Mutual Information for feature selection
+        print("\tStarting Mutual Information score calculation...")
 
-        # # Remove any rows with NaN values after merging
-        # df = df.dropna()  
+        # Remove any rows with NaN values after merging
+        df = df.dropna()  
 
-        # # Columns to be excluded
-        # columns_to_exclude = ['PriceHU', 'Date'] + exclude_columns
+        # Columns to be excluded
+        columns_to_exclude = ['PriceHU', 'Date'] + exclude_columns
 
-        # # Ensure columns exist before dropping
-        # columns_to_exclude = check_columns_to_drop(df, columns_to_exclude)
+        # Ensure columns exist before dropping
+        columns_to_exclude = check_columns_to_drop(df, columns_to_exclude)
 
-        # # Drop the columns
-        # X = df.drop(columns=columns_to_exclude, axis=1)
-        # y = df['PriceHU']
+        # Drop the columns
+        X = df.drop(columns=columns_to_exclude, axis=1)
+        y = df['PriceHU']
 
-        # # Calculate mutual information
-        # mi = mutual_info_regression(X, y)
-        # mi_scores = pd.Series(mi, name="MI Scores", index=X.columns).sort_values(ascending=False)
+        # Calculate mutual information
+        mi = mutual_info_regression(X, y)
+        mi_scores = pd.Series(mi, name="MI Scores", index=X.columns).sort_values(ascending=False)
 
-        # # Select features based on MI scores
-        # top_mi_features = mi_scores.head(10).index.tolist() 
-        # print("\tSelecting interaction columns based on MI scores...")
-        # interaction_columns = [col for col in top_mi_features if col not in ['PriceHU', 'Date']]
-        # print(f"\tSelected interaction columns: {interaction_columns}")
+        # Select features based on MI scores
+        top_mi_features = mi_scores.head(10).index.tolist() 
+        print("\tSelecting interaction columns based on MI scores...")
+        interaction_columns = [col for col in top_mi_features if col not in ['PriceHU', 'Date']]
+        print(f"\tSelected interaction columns: {interaction_columns}")
 
-        # interaction_features = create_interaction_features(df, interaction_columns)
-        # df = pd.concat([df, interaction_features], axis=1)
+        interaction_features = create_interaction_features(df, interaction_columns)
+        df = pd.concat([df, interaction_features], axis=1)
         
         # Mutual Information for feature selection
         historical_data = historical_data.dropna()
