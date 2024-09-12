@@ -52,7 +52,7 @@ def preprocess_data(data, start_date, end_date):
         print("Error: 'Date' column not found in input data.")
         sys.exit(1)
 
-    print(f"Data types after conversion:\n{data.dtypes}")  # Check data types
+    # print(f"Data types after conversion:\n{data.dtypes}")  # Check data types
 
     # Check if 'PriceHU' exists and set it as the target variable
     if 'PriceHU' in data.columns:
