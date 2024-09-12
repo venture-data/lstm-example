@@ -1,16 +1,15 @@
 import sys
+import os
+import pickle
+import numpy as np
 import pandas as pd
 from prophet import Prophet
-import pickle
-import warnings
-import os
+from itertools import combinations
+from sklearn.preprocessing import PolynomialFeatures
 from sklearn.feature_selection import mutual_info_regression
-import numpy as np
-
 
 # Get the directory of the script
 script_dir = os.path.dirname(os.path.abspath(__file__))
-# Define the file name for the model
 model_file = os.path.join(script_dir, 'prophet_model.pkl')
 feature_csv_file = os.path.join(script_dir, 'features_for_Prophet.csv')
 
@@ -29,6 +28,26 @@ def add_exponential_moving_average(data, column, ema_windows):
     for window in ema_windows:
         data[f'ema_{window}h'] = data[column].ewm(span=window).mean()
     return data
+
+def create_fourier_features(data, period, order):
+    t = np.arange(len(data))
+    for i in range(1, order + 1):
+        data[f'sin_{period}_{i}'] = np.sin(2 * np.pi * i * t / period)
+        data[f'cos_{period}_{i}'] = np.cos(2 * np.pi * i * t / period)
+
+def create_interaction_features(df, columns, add=""):
+    """
+    Creates interaction features for the given DataFrame `df` using the specified `columns`.
+    """
+    print(f"\t{add}Creating interaction features...")
+    interaction_features = pd.DataFrame(index=df.index)
+
+    # Generate all possible combinations of the specified columns
+    for col1, col2 in combinations(columns, 2):
+        interaction_col_name = f"{col1}_x_{col2}"
+        interaction_features[interaction_col_name] = df[col1] * df[col2]
+
+    return interaction_features
 
 # Read command-line arguments
 input_file = sys.argv[1]
@@ -59,70 +78,126 @@ if start_date < min_date or end_date > cutoff_date:
     sys.exit(1)
 
 print(f"Loading dataset from {input_file}...")
-# Load the dataset
-df = pd.read_excel(input_file)
+
+# Determine the file extension
+file_extension = os.path.splitext(input_file)[1].lower()
+
+# Load the dataset based on the file extension
+if file_extension == '.xlsx' or file_extension == '.xls':
+    df = pd.read_excel(input_file)
+elif file_extension == '.csv':
+    df = pd.read_csv(input_file)
+else:
+    raise ValueError("Unsupported file type. Please provide an Excel (.xlsx, .xls) or CSV (.csv) file.")
+
 print(f"Dataset loaded with {len(df)} rows.")
 
-print(f"Finding best feature based on entire, valid, dataset.")
-data = df[(df['Date'] >= min_date) & (df['Date'] <= cutoff_date)]
-data["Date"] = data["Date"].dt.round('h')
+# print(f"Finding best feature based on entire, valid, dataset.")
+# data = df[(df['Date'] >= min_date) & (df['Date'] <= cutoff_date)]
+# data["Date"] = data["Date"].dt.round('h')
+print(f"Dataset loaded with {len(df)} rows.")
+
+# Ensure 'Date' is in datetime format
+df['Date'] = pd.to_datetime(df['Date'], format='%Y-%m-%d %H:%M:%S')  # Adjust the format if necessary
+df.loc[:, "Date"] = df["Date"].dt.round('h')
+
+# Check for any conversion errors
+if df['Date'].isna().any():
+    print("Warning: Some date values could not be converted. Check the format of your 'Date' column.")
+
+# Filter the DataFrame based on date range
+data = df.loc[(df['Date'] >= min_date) & (df['Date'] <= cutoff_date)].copy()  # Use .copy() to ensure it's a new DataFrame
+print(f"Filtered dataset has {len(data)} rows.")
+
+# Filter the DataFrame using .loc and ensure it is done safely
+print(f"Finding best feature based on training dates only.")
+# data = df.loc[(df['Date'] >= min_date) & (df['Date'] <= cutoff_date)].copy()  # Use .copy() to ensure it's a new DataFrame
+
+# Use .loc to modify the 'Date' column safely
+data.loc[:, "Date"] = data["Date"].dt.round('h')
+
+data_feature_engg = data.copy()
+data_feature_engg['Date'] = data_feature_engg['Date'].dt.round('h')
+data_feature_engg = data_feature_engg.loc[(data_feature_engg['Date'] >= min_date) & (data_feature_engg['Date'] <= end_date)].copy()
 
 if is_automatic:
     print("Started Automatic feature selection")
     columns_to_drop = [
-    'Y', 'M', 'Day', 'H', 'Y2016',	'Y2017',	'Y2018',	'Y2019',	'Y2020',	'Y2021',	'Y2022',	'Y2023',	'Y2024',
+    # 'Y', 'M', 'Day', 'H',
+    'Y2016',	'Y2017',	'Y2018',	'Y2019',	'Y2020',	'Y2021',	'Y2022',	'Y2023',	'Y2024',
     'M1',	'M2',	'M3',	'M4',	'M5',	'M6',	'M7',	'M8',	'M9',	'M10',	'M11',	'M12',
     'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'h8', 'h9', 'h10',
     'h11', 'h12', 'h13', 'h14', 'h15', 'h16', 'h17', 'h18', 'h19',
     'h20', 'h21', 'h22', 'h23', 'h24',
     'PriceCZ', 'PriceSK', 'PriceRO'
     ]
-    data = data.drop(columns=columns_to_drop)
+    data_feature_engg = data_feature_engg.drop(columns=columns_to_drop)
     
     # Feature Engineering
-    print("Simple Time based features generated")
-    data['hour'] = data['Date'].dt.hour
-    data['day_of_week'] = data['Date'].dt.dayofweek
-    data['is_weekend'] = data['day_of_week'].isin([5, 6]).astype(int)
-    data['month'] = data['Date'].dt.month
+    print("\tSimple Time based features generated")
+    data_feature_engg['week_of_year'] = data_feature_engg['Date'].dt.isocalendar().week
+    data_feature_engg['hour_of_week'] = data_feature_engg['Day'] * 24 + data_feature_engg['H']
+    data_feature_engg['quarter'] = data_feature_engg['Date'].dt.quarter
 
     # Cyclical time-based features
-    print("Cyclical time-based features generated")
-    data['sin_hour'] = np.sin(2 * np.pi * data['hour'] / 24)
-    data['cos_hour'] = np.cos(2 * np.pi * data['hour'] / 24)
-    data['sin_day_of_week'] = np.sin(2 * np.pi * data['day_of_week'] / 7)
-    data['cos_day_of_week'] = np.cos(2 * np.pi * data['day_of_week'] / 7)
+    print("\tCyclical time-based features generated")
+    data_feature_engg['sin_hour'] = np.sin(2 * np.pi * data_feature_engg['H'] / 24)
+    data_feature_engg['cos_hour'] = np.cos(2 * np.pi * data_feature_engg['H'] / 24)
+    data_feature_engg['sin_day_of_week'] = np.sin(2 * np.pi * data_feature_engg['Day'] / 7)
+    data_feature_engg['cos_day_of_week'] = np.cos(2 * np.pi * data_feature_engg['Day'] / 7)
     
-    column = 'PriceHU'
+    print("\tFourier features generated")
+    create_fourier_features(data_feature_engg, period=168, order=5)  # Weekly seasonality example
     
-    print("Added Lags")
-    lags = [1, 3, 6, 12, 24, 48, 72, 168]
-    data = add_lagged_features(data, column, lags)
+    # Polynomial Features
+    print("\tPolynomial features generated")
+    poly = PolynomialFeatures(degree=2, interaction_only=False, include_bias=False)
+    poly_features = poly.fit_transform(data_feature_engg[['H', 'Day', 'WDAY']])
+    poly_features_df = pd.DataFrame(poly_features, columns=poly.get_feature_names_out(['H', 'Day', 'WDAY']))
+    data_feature_engg = pd.concat([data_feature_engg, poly_features_df], axis=1)
     
-    print("Added rolling windows")
-    windows = [3, 6, 12, 24, 168]
-    data = add_rolling_window_features(data, column, windows)
+    # target_column = 'PriceHU'
     
-    print("Added ema windows")
-    ema_windows = [12, 24, 168]
-    data = add_exponential_moving_average(data, column, ema_windows)
+    # print("\tAdded Lags")
+    # lags = [1, 3, 6, 12, 24, 48, 72, 168]
+    # data = add_lagged_features(data, target_column, lags)
+    
+    # print("\tAdded rolling windows")
+    # windows = [3, 6, 12, 24, 168]
+    # data = add_rolling_window_features(data, target_column, windows)
+    
+    # print("\tAdded ema windows")
+    # ema_windows = [12, 24, 168]
+    # data = add_exponential_moving_average(data, target_column, ema_windows)
     
     # data = data[(data['Date'] >= start_date) & (data['Date'] <= end_date)]
-    data = data.dropna()
+    data_feature_engg = data_feature_engg.dropna()
     
     # Mutual Information for Feature Selection
-    X = data.drop(['PriceHU', 'Date'], axis=1)
-    y = data['PriceHU']
+    X = data_feature_engg.drop(['PriceHU', 'Date'], axis=1)
+    y = data_feature_engg['PriceHU']
 
-    print("Started Mutual Information Score calculation. this will take a short while.")
+    print("\tStarted Mutual Information Score calculation. this will take a short while.")
     mi = mutual_info_regression(X, y)
     mi_scores = pd.Series(mi, name="MI Scores", index=X.columns).sort_values(ascending=False)
     
+    top_mi_features = mi_scores.head(10).index.tolist() 
+    
+    # Automate Interaction Feature Selection
+    print("\tSelecting top columns for interaction features based on MI scores...")
+    interaction_columns = [col for col in top_mi_features if col not in ['PriceHU', 'Date']]
+    print(f"\tSelected interaction columns: {interaction_columns}")
+
+    # Generate Interaction Features
+    interaction_features = create_interaction_features(data_feature_engg, interaction_columns)
+    data_feature_engg = pd.concat([data_feature_engg, interaction_features], axis=1)
+        
     top_features = mi_scores[mi_scores > 0.3].index  # For example, keep features with MI score > 0.5
     X_filtered = X[top_features]
     top_features = top_features.tolist()
     
-    columns_to_save = top_features + ['Date', 'PriceHU', 'WDAY']
+    columns_to_save = top_features + ['Date', 'PriceHU']
+    print(f"\tTop features selected: {top_features}")
 else:
     # Convert the string argument to a list of provided manual regressors
     provided_features = eval(manual_regressors)
@@ -156,22 +231,74 @@ else:
     # Ensure we keep only the manually provided features and the newly created features
     columns_to_save = list(set(provided_features).intersection(engineered_features)) + ['Date', 'PriceHU']
 
-
+print("Now for original data:")
 # After Completing the Feature Selection the data will be cut off based on input end date
+# Simple Time-Based Features
+print("\t[O]\tSimple Time-based features generated")
+data['week_of_year'] = data['Date'].dt.isocalendar().week
+data['hour_of_week'] = data['Day'] * 24 + data['H']
+data['quarter'] = data['Date'].dt.quarter
 
+# Cyclical Time-Based Features
+print("\t[O]\tCyclical time-based features generated")
+data['sin_hour'] = np.sin(2 * np.pi * data['H'] / 24)
+data['cos_hour'] = np.cos(2 * np.pi * data['H'] / 24)
+data['sin_day_of_week'] = np.sin(2 * np.pi * data['Day'] / 7)
+data['cos_day_of_week'] = np.cos(2 * np.pi * data['Day'] / 7)
+
+# Fourier Features
+print("\t[O]\tFourier features generated")
+def create_fourier_features(data, period, order):
+    t = np.arange(len(data))
+    for i in range(1, order + 1):
+        data[f'sin_{period}_{i}'] = np.sin(2 * np.pi * i * t / period)
+        data[f'cos_{period}_{i}'] = np.cos(2 * np.pi * i * t / period)
+
+create_fourier_features(data, period=168, order=5)  # Weekly seasonality example
+
+# Polynomial Features
+print("\t[O]\tPolynomial features generated")
+poly = PolynomialFeatures(degree=2, interaction_only=False, include_bias=False)
+poly_features = poly.fit_transform(data[['H', 'Day', 'WDAY']])
+poly_features_df = pd.DataFrame(poly_features, columns=poly.get_feature_names_out(['H', 'Day', 'WDAY']))
+data = pd.concat([data, poly_features_df], axis=1)
+
+# Generate Interaction Features
+interaction_features = create_interaction_features(data, interaction_columns, add="[O]\t")
+data = pd.concat([data, interaction_features], axis=1)
+
+# Remove rows with missing values
+# data = data.dropna()
 data = data[columns_to_save]
 data.to_csv(feature_csv_file, index=False)
+
+# Filter data for the training range
 print(f"Filtering Data for training from {start_date} till {end_date}")
+start_date = pd.to_datetime(start_date)
+end_date = pd.to_datetime(end_date)
+data['Date'] = pd.to_datetime(data['Date'])  # Ensure 'Date' is datetime
 data = data[(data['Date'] >= start_date) & (data['Date'] <= end_date)]
 
-# Convert the 'ds' column to datetime format
+# Convert 'Date' to 'ds' and target column to 'y'
 data['ds'] = data['Date']
 data['y'] = data['PriceHU']
 data = data.drop(columns=['Date', 'PriceHU'])
 
 print(f"Training dataset prepared with {len(data)} rows.")
 
-# Initialize the Prophet model with custom parameters
+# Ensure all future regressor columns are numeric
+for col in data.columns:
+    if col not in ['ds', 'y']:
+        # Convert the column to a Series explicitly
+        column_series = data[col]
+        if isinstance(column_series, pd.Series):
+            data[col] = pd.to_numeric(column_series, errors='coerce')
+            if data[col].isna().any():
+                print(f"Warning: Column '{col}' has non-numeric values. Check data for issues.")
+        else:
+            print(f"Error: '{col}' is not a valid pandas Series for conversion.")
+
+# Initialize the Prophet model
 print("Initializing Prophet model...")
 model = Prophet(
     changepoint_prior_scale=1.5,
