@@ -156,19 +156,19 @@ if is_automatic:
     poly_features_df = pd.DataFrame(poly_features, columns=poly.get_feature_names_out(['H', 'Day', 'WDAY']))
     data_feature_engg = pd.concat([data_feature_engg, poly_features_df], axis=1)
     
-    # target_column = 'PriceHU'
+    target_column = 'PriceHU'
     
-    # print("\tAdded Lags")
-    # lags = [1, 3, 6, 12, 24, 48, 72, 168]
-    # data = add_lagged_features(data, target_column, lags)
+    print("\tAdded Lags")
+    lags = [1, 3, 6, 12, 24, 48, 72, 168]
+    data_feature_engg = add_lagged_features(data_feature_engg, target_column, lags)
     
-    # print("\tAdded rolling windows")
-    # windows = [3, 6, 12, 24, 168]
-    # data = add_rolling_window_features(data, target_column, windows)
+    print("\tAdded rolling windows")
+    windows = [3, 6, 12, 24, 168]
+    data_feature_engg = add_rolling_window_features(data_feature_engg, target_column, windows)
     
-    # print("\tAdded ema windows")
-    # ema_windows = [12, 24, 168]
-    # data = add_exponential_moving_average(data, target_column, ema_windows)
+    print("\tAdded ema windows")
+    ema_windows = [12, 24, 168]
+    data_feature_engg = add_exponential_moving_average(data_feature_engg, target_column, ema_windows)
     
     # data = data[(data['Date'] >= start_date) & (data['Date'] <= end_date)]
     data_feature_engg = data_feature_engg.dropna()
@@ -177,11 +177,22 @@ if is_automatic:
     X = data_feature_engg.drop(['PriceHU', 'Date'], axis=1)
     y = data_feature_engg['PriceHU']
 
-    print("\tStarted Mutual Information Score calculation. this will take a short while.")
+    # Assuming X and y are already defined
+    print("\tStarted Mutual Information Score calculation. This will take a short while.")
     mi = mutual_info_regression(X, y)
+
+    # Create a Series with MI scores
     mi_scores = pd.Series(mi, name="MI Scores", index=X.columns).sort_values(ascending=False)
+
+    # Convert the Series to a DataFrame to include column names
+    mi_scores_df = mi_scores.reset_index()
+    mi_scores_df.columns = ['Column Name', 'MI Score']  # Rename columns for clarity
+
+    # Save the MI scores to a CSV file
+    mi_scores_df.to_csv("my_mi_scores.csv", index=False)
+    print("MI scores saved to 'my_mi_scores.csv'")
     
-    top_mi_features = mi_scores.head(10).index.tolist() 
+    top_mi_features = mi_scores.head(10).index.tolist()     
     
     # Automate Interaction Feature Selection
     print("\tSelecting top columns for interaction features based on MI scores...")
@@ -191,7 +202,12 @@ if is_automatic:
     # Generate Interaction Features
     interaction_features = create_interaction_features(data_feature_engg, interaction_columns)
     data_feature_engg = pd.concat([data_feature_engg, interaction_features], axis=1)
-        
+    
+    X = data_feature_engg.drop(['PriceHU', 'Date'], axis=1)
+    y = data_feature_engg['PriceHU']
+    mi = mutual_info_regression(X, y)
+    mi_scores = pd.Series(mi, name="MI Scores", index=X.columns).sort_values(ascending=False)
+    
     top_features = mi_scores[mi_scores > 0.3].index  # For example, keep features with MI score > 0.5
     X_filtered = X[top_features]
     top_features = top_features.tolist()
@@ -262,6 +278,20 @@ poly = PolynomialFeatures(degree=2, interaction_only=False, include_bias=False)
 poly_features = poly.fit_transform(data[['H', 'Day', 'WDAY']])
 poly_features_df = pd.DataFrame(poly_features, columns=poly.get_feature_names_out(['H', 'Day', 'WDAY']))
 data = pd.concat([data, poly_features_df], axis=1)
+
+target_column = 'PriceHU'
+
+print("\tAdded Lags")
+lags = [1, 3, 6, 12, 24, 48, 72, 168]
+data = add_lagged_features(data, target_column, lags)
+
+print("\tAdded rolling windows")
+windows = [1, 3, 6, 12, 24, 168]
+data = add_rolling_window_features(data, target_column, windows)
+
+print("\tAdded ema windows")
+ema_windows = [3, 6, 12, 24, 168]
+data = add_exponential_moving_average(data, target_column, ema_windows)
 
 # Generate Interaction Features
 interaction_features = create_interaction_features(data, interaction_columns, add="[O]\t")

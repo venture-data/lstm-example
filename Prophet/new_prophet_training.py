@@ -141,10 +141,23 @@ def main(input_file, start_date, end_date, is_automatic=True, manual_regressors=
 
         interaction_features = create_interaction_features(historical_data, interaction_columns)
         historical_data = pd.concat([historical_data, interaction_features], axis=1)
+        
+        # Mutual Information for feature selection
+        print("\tStarting Mutual Information score calculation again...")
+        historical_data = historical_data.dropna()
+        X = historical_data.drop(['PriceHU', 'Date'], axis=1)
+        y = historical_data['PriceHU']
+        mi = mutual_info_regression(X, y)
+        mi_scores = pd.Series(mi, name="MI Scores", index=X.columns).sort_values(ascending=False)
 
         # Propagate the features to the original dataset
-        print("Applying the same feature engineering to the entire original dataset...")
+        print("\tApplying the same feature engineering to the entire original dataset...")
         df = apply_feature_engineering(df)
+        
+        # Merge interaction features from historical_data to df based on 'Date'
+        print("\tMerging interaction columns with the original dataset based on 'Date'...")
+        interaction_features = create_interaction_features(df, interaction_columns)
+        df = pd.concat([df, interaction_features], axis=1)
         
         # Select and save features
         top_features = mi_scores[mi_scores > 0.3].index.tolist()
