@@ -5,68 +5,40 @@ from neuralprophet import NeuralProphet
 import os
 from sklearn.feature_selection import mutual_info_regression
 import numpy as np
-# import matplotlib.pyplot as plt
+
 # Suppress all warnings
 warnings.filterwarnings("ignore")
 
 # Get the directory of the script
 script_dir = os.path.dirname(os.path.abspath(__file__))
-# Define the file name for the model
-model_file = os.path.join(script_dir, 'neuralprophet_model.pkl') 
-feature_csv_file = os.path.join(script_dir, 'features_for_nProphet.csv') 
+# Define the file name for the model and feature CSV
+model_file = os.path.join(script_dir, 'neuralprophet_model.pkl')
+feature_csv_file = os.path.join(script_dir, 'features_for_nProphet.csv')
 
 def add_lagged_features(data, column, lags):
-    """
-    Adds lagged features to the DataFrame for the specified column.
-
-    Parameters:
-    - data: DataFrame containing the data.
-    - column: The column to create lagged features for.
-    - lags: A list of lag periods to use.
-
-    Returns:
-    - DataFrame with lagged features added.
-    """
     for lag in lags:
         data[f'lag_{lag}'] = data[column].shift(lag)
     return data
 
 def add_rolling_window_features(data, column, windows):
-    """
-    Adds rolling window features (mean and std) to the DataFrame for the specified column.
-
-    Parameters:
-    - data: DataFrame containing the data.
-    - column: The column to create rolling window features for.
-    - windows: A list of window sizes to use.
-
-    Returns:
-    - DataFrame with rolling window features added.
-    """
     for window in windows:
         data[f'rolling_mean_{window}h'] = data[column].rolling(window).mean()
         data[f'rolling_std_{window}h'] = data[column].rolling(window).std()
     return data
 
 def add_exponential_moving_average(data, column, ema_windows):
-    """
-    Adds exponential moving average (EMA) features to the DataFrame for the specified column.
-
-    Parameters:
-    - data: DataFrame containing the data.
-    - column: The column to create EMA features for.
-    - ema_windows: A list of EMA window sizes to use.
-
-    Returns:
-    - DataFrame with EMA features added.
-    """
     for window in ema_windows:
         data[f'ema_{window}h'] = data[column].ewm(span=window).mean()
     return data
+
 # Read command-line arguments
 input_file = sys.argv[1]
 start_date = sys.argv[2]
 end_date = sys.argv[3]
+
+# Convert start_date and end_date to datetime
+start_date = pd.to_datetime(start_date)
+end_date = pd.to_datetime(end_date)
 
 # Check the number of command-line arguments
 if len(sys.argv) == 4:
@@ -83,36 +55,34 @@ min_date = pd.to_datetime('2017-01-01 00:00')
 cutoff_date = pd.to_datetime("2024-08-20 23:00")
 
 # Validate the dates
-# if start_date < min_date or end_date > cutoff_date:
-#     print(f"Error: The provided date range [{start_date}, {end_date}] is out of bounds.")
-#     print(f"Start date cannot be less than {min_date} and end date cannot exceed {cutoff_date}.")
-#     sys.exit(1)
+if start_date < min_date or end_date > cutoff_date:
+    print(f"Error: The provided date range [{start_date}, {end_date}] is out of bounds.")
+    print(f"Start date cannot be less than {min_date} and end date cannot exceed {cutoff_date}.")
+    sys.exit(1)
 
 print(f"Loading dataset from {input_file}...")
-# Load the dataset
 df = pd.read_csv(input_file)
 print(f"Dataset loaded with {len(df)} rows.")
-df['Date'] = pd.to_datetime(df['Date'], format='%Y-%m-%d %H:%M:%S')  # Adjust the format if necessary
-df.loc[:, "Date"] = df["Date"].dt.round('h')
+df['Date'] = pd.to_datetime(df['Date'], format='%Y-%m-%d %H:%M:%S', errors='coerce')
+df['Date'] = df['Date'].dt.round('h')
 
 print(f"Defining minimum and maximum dates data for training from {min_date} to {cutoff_date}...")
-data = df[(df['Date'] >= min_date) & (df['Date'] <= cutoff_date)]
-data["Date"] = data["Date"].dt.round('h')
+data = df[(df['Date'] >= min_date) & (df['Date'] <= cutoff_date)].copy()
 
 if is_automatic:
     print("Started Automatic feature selection")
     columns_to_drop = [
-    'Y', 'M', 'Day', 'H', 'Y2016',	'Y2017',	'Y2018',	'Y2019',	'Y2020',	'Y2021',	'Y2022',	'Y2023',	'Y2024',
-    'M1',	'M2',	'M3',	'M4',	'M5',	'M6',	'M7',	'M8',	'M9',	'M10',	'M11',	'M12',
-    'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'h8', 'h9', 'h10',
-    'h11', 'h12', 'h13', 'h14', 'h15', 'h16', 'h17', 'h18', 'h19',
-    'h20', 'h21', 'h22', 'h23', 'h24',
-    'PriceCZ', 'PriceSK', 'PriceRO'
+        'Y', 'M', 'Day', 'H', 'Y2016', 'Y2017', 'Y2018', 'Y2019', 'Y2020', 'Y2021', 'Y2022', 'Y2023', 'Y2024',
+        'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9', 'M10', 'M11', 'M12',
+        'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'h8', 'h9', 'h10',
+        'h11', 'h12', 'h13', 'h14', 'h15', 'h16', 'h17', 'h18', 'h19',
+        'h20', 'h21', 'h22', 'h23', 'h24',
+        'PriceCZ', 'PriceSK', 'PriceRO'
     ]
-    data = data.drop(columns=columns_to_drop)
-    
+    data = data.drop(columns=[col for col in columns_to_drop if col in data.columns], errors='ignore')
+
     # Feature Engineering
-    print("Simple Time based features generated")
+    print("Simple Time-based features generated")
     data['hour'] = data['Date'].dt.hour
     data['day_of_week'] = data['Date'].dt.dayofweek
     data['is_weekend'] = data['day_of_week'].isin([5, 6]).astype(int)
@@ -124,47 +94,50 @@ if is_automatic:
     data['cos_hour'] = np.cos(2 * np.pi * data['hour'] / 24)
     data['sin_day_of_week'] = np.sin(2 * np.pi * data['day_of_week'] / 7)
     data['cos_day_of_week'] = np.cos(2 * np.pi * data['day_of_week'] / 7)
-    
+
+    # Target variable
     column = 'PriceHU'
-    
-    print("Added Lags")
+
+    print("Adding Lags")
     lags = [1, 3, 6, 12, 24, 48, 72, 168]
     data = add_lagged_features(data, column, lags)
-    
-    print("Added rolling windows")
+
+    print("Adding rolling windows")
     windows = [3, 6, 12, 24, 168]
     data = add_rolling_window_features(data, column, windows)
-    
-    print("Added ema windows")
+
+    print("Adding EMA windows")
     ema_windows = [12, 24, 168]
     data = add_exponential_moving_average(data, column, ema_windows)
-    
-    # data = data[(data['Date'] >= start_date) & (data['Date'] <= end_date)]
+
+    # Drop any rows with NaN values
     data = data.dropna()
-    
+
     # Mutual Information for Feature Selection
     X = data.drop(['PriceHU', 'Date'], axis=1)
     y = data['PriceHU']
 
-    print("Started Mutual Information Score calculation. this will take a short while.")
+    print("Calculating Mutual Information Scores...")
     mi = mutual_info_regression(X, y)
     mi_scores = pd.Series(mi, name="MI Scores", index=X.columns).sort_values(ascending=False)
-    
-    top_features = mi_scores[mi_scores > 0.3].index  # For example, keep features with MI score > 0.5
-    X_filtered = X[top_features]
-    top_features = top_features.tolist()
-    
-    columns_to_save = top_features + ['Date', 'PriceHU', 'WDAY']
-else:
-    # Convert the string argument to a list of provided manual regressors
-    provided_features = eval(manual_regressors)
 
+    # Exclude lagged features of 'PriceHU'
+    top_features = [feature for feature in mi_scores[mi_scores > 0.3].index
+                    if not (feature.startswith('lag_') or feature.startswith('rolling_') or feature.startswith('ema_'))]
+
+    columns_to_save = top_features + ['Date', 'PriceHU']
+else:
+    # Use provided manual regressors
+    provided_features = eval(manual_regressors)
+    columns_to_save = provided_features + ['Date', 'PriceHU']
 
 data = data[columns_to_save]
 data.to_csv(feature_csv_file, index=False)
-data = data[(data['Date'] >= start_date) & (data['Date'] <= end_date)]
 
-# Convert the 'ds' column to datetime format
+# Filter data between start_date and end_date
+data = data[(data['Date'] >= start_date) & (data['Date'] <= end_date)].copy()
+
+# Prepare data for model training
 data['ds'] = data['Date']
 data['y'] = data['PriceHU']
 data = data.drop(columns=['Date', 'PriceHU'])
@@ -175,46 +148,70 @@ print(f"Training dataset prepared with {len(data)} rows.")
 # Initialize the NeuralProphet model with customized parameters
 print("Initializing NeuralProphet model...")
 model = NeuralProphet(
-    growth="linear",  # Assuming no saturation in fuel prices; use "logistic" if there is a saturation point.
-    n_changepoints=40,  # Increased number of changepoints to handle high variability
-    changepoints_range=0.95,  # Allow changepoints across most of the training data
-    trend_reg=0.1,  # Small regularization to avoid overfitting trend changes
-    trend_global_local="global",  # Use a global trend model
-    yearly_seasonality="auto",  # Disable yearly seasonality unless it's relevant
-    weekly_seasonality="auto",  # Let the model automatically detect weekly seasonality
-    daily_seasonality="auto",  # Let the model automatically detect daily seasonality
-    seasonality_mode="additive",  # Additive seasonality to handle independent seasonal effects
-    seasonality_reg=0.1,  # Small regularization to avoid overfitting seasonal patterns
-    n_forecasts=504,  # Predict the next 3 weeks (24 hours * 21 days)
-    learning_rate=0.005,  # Set a stable learning rate
-    # epochs=1000,  # Use a high number of epochs due to large dataset size
-    # batch_size=1024,  # Batch size based on available hardware, use higher if running on a GPU
-    optimizer="AdamW",  # Use AdamW optimizer for efficient training with weight decay
-    impute_missing=True,  # Enable missing value imputation
-    normalize="auto",  # Automatic normalization to scale the data appropriately
+    growth="linear",
+    n_changepoints=40,
+    changepoints_range=0.95,
+    trend_reg=0.1,
+    trend_global_local="local",
+    global_normalization=False,
+    yearly_seasonality="auto",
+    weekly_seasonality="auto",
+    daily_seasonality="auto",
+    seasonality_mode="additive",
+    seasonality_reg=0.1,
+    learning_rate=0.005,
+    optimizer="AdamW",
+    impute_missing=True,
+    normalize="auto",
 )
 
-# Add future regressors and lagged regressors
-print("Adding future regressors and lagged regressors to the model...")
+# Add future regressors (excluding lagged features of 'PriceHU')
+print("Adding future regressors to the model...")
 for col in data.columns:
-    if col not in ['ds', 'y']:
-            model = model.add_future_regressor(name=col)
+    if col not in ['ds', 'y'] and not (col.startswith('lag_') or col.startswith('rolling_') or col.startswith('ema_')):
+        model = model.add_future_regressor(name=col)
 
-print("All future and lagged regressors added.")
+print("Future regressors added.")
 
 # Train the model
 print("Training the model...")
 model.fit(data, freq='h')
 print("Model training complete.")
 
-# Create a dataframe for future predictions using the actual future data from 'data_prep.csv'
-print(f"Preparing future dataframe for predictions from {end_date} to {cutoff_date}...")
-df_future = data[(data['ds'] > end_date) & (data['ds'] <= cutoff_date)].copy()
-print(f"Future dataframe prepared with {len(df_future)} rows.")
+# Load the feature CSV file that includes future regressors
+print("Loading feature CSV file for forecasting...")
+forecast_data = pd.read_csv(feature_csv_file)
+
+# Ensure 'Date' column is in datetime format
+forecast_data['Date'] = pd.to_datetime(forecast_data['Date'])
+forecast_data['ds'] = forecast_data['Date']
+forecast_data = forecast_data.drop(columns=['Date'])
+
+# Exclude 'PriceHU' or 'y' if present
+forecast_data = forecast_data.drop(columns=['PriceHU', 'y'], errors='ignore')
+
+# Ensure all columns are numeric
+for col in forecast_data.columns:
+    if col != 'ds':
+        forecast_data[col] = pd.to_numeric(forecast_data[col], errors='coerce')
+
+# Handle any missing values
+forecast_data = forecast_data.fillna(method='ffill').fillna(method='bfill')
+
+# Filter the data for the forecasting period
+forecast_data = forecast_data[(forecast_data['ds'] > end_date) & (forecast_data['ds'] <= cutoff_date)].copy()
+print(f"Forecasting dataset prepared with {len(forecast_data)} rows.")
+
+# Ensure all necessary regressors are present
+required_regressors = [reg['name'] for reg in model.config_covar]
+missing_regressors = [reg for reg in required_regressors if reg not in forecast_data.columns]
+if missing_regressors:
+    print(f"Error: The following regressors are missing in forecast data: {missing_regressors}")
+    sys.exit(1)
 
 # Make predictions
-print("Making predictions...")
-forecast = model.predict(df_future)
+print("Making forecasts...")
+forecast = model.predict(forecast_data)
 print("Predictions completed.")
 
 # Save the forecast to a CSV file
